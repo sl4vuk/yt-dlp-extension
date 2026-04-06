@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="ui.css" />
+  <title>YT BOOKMARK CLEANER</title>
+</head>
+<body>
+  <div id="app">
+    <h3 class="title">YT BOOKMARK CLEANER</h3>
+
+    <!-- CONTADORES -->
+    <div class="stats-grid">
+      <!-- fila 1 -->
+      <div class="stat-card left">
+        <div class="stat-title">Duplicates removed</div>
+        <div class="stat-value" id="dup">0</div>
+      </div>
+
+      <div class="stat-card right">
+        <div class="stat-title">Music normalized</div>
+        <div class="stat-value" id="music">0</div>
+      </div>
+
+      <!-- fila 2 -->
+      <div class="stat-card left">
+        <div class="stat-title">Total scanned</div>
+        <div class="stat-value" id="total">0</div>
+      </div>
+
+      <div class="stat-card right">
+        <div class="stat-title">ID</div>
+        <div class="stat-value" id="folder">---</div>
+      </div>
+    </div>
+
+    <select id="folderSelect"></select>
+
+    <div class="grid">
+      <button id="clean">Full Clean</button>
+
+      <select id="export">
+        <option value="">Export</option>
+        <option value="txt">Text</option>
+        <option value="html">HTML</option>
+        <option value="csv">CSV</option>
+      </select>
+    </div>
+
+    <button id="undo">Undo</button>
+    <footer>Press Ctrl + Shift + F to open/hide</footer>
+  </div>
+  <script src="ui.js"></script>
+</body>
+</html>

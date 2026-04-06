@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "YT Bookmark Cleaner",
+  "version": "1.1",
+  "description": "Limpia bookmarks y URLs de YouTube",
+
+  "permissions": [
+    "bookmarks",
+    "storage",
+    "windows"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_title": "YT Bookmark Cleaner"
+  },
+
+  "commands": {
+    "toggle-ui": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F"
+      },
+      "description": "Abrir YT Bookmark Cleaner"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["cleaner.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
