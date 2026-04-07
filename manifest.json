@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "YT Bookmark Cleaner",
-  "version": "1.1",
-  "description": "Limpia bookmarks y URLs de YouTube",
+  "version": "2.1",
+  "description": "YouTube bookmark manager, sync & downloader with yt-dlp",
 
   "permissions": [
     "bookmarks",
     "storage",
-    "windows"
+    "windows",
+    "tabs",
+    "nativeMessaging"
   ],
 
   "background": {
@@ -15,15 +17,18 @@
   },
 
   "action": {
-    "default_title": "YT Bookmark Cleaner"
+    "default_title": "YT Bookmark Cleaner",
+    "default_popup": "ui.html"
   },
 
   "commands": {
     "toggle-ui": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+F"
-      },
-      "description": "Abrir YT Bookmark Cleaner"
+      "suggested_key": { "default": "Ctrl+Shift+F" },
+      "description": "Open YT Bookmark Cleaner"
+    },
+    "auto-like": {
+      "suggested_key": { "default": "Ctrl+Shift+L" },
+      "description": "Auto-like current YouTube video (use Ctrl+D on page for like+bookmark)"
     }
   },
 
@@ -36,9 +41,19 @@
 
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://music.youtube.com/*"
+      ],
       "js": ["cleaner.js"],
       "run_at": "document_idle"
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["ui.html"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

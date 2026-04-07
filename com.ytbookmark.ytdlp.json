@@ -1,0 +1,9 @@
+{
+  "name": "com.ytbookmark.ytdlp",
+  "description": "YT Bookmark Cleaner — yt-dlp bridge",
+  "path": "/ABSOLUTE/PATH/TO/native_host.py",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://YOUR_EXTENSION_ID_HERE/"
+  ]
+}

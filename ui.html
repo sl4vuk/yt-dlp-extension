@@ -1,56 +1,138 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="ui.css" />
-  <title>YT BOOKMARK CLEANER</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="ui.css"/>
+  <title>YT Bookmark Cleaner</title>
 </head>
 <body>
-  <div id="app">
-    <h3 class="title">YT BOOKMARK CLEANER</h3>
+<div id="app">
 
-    <!-- CONTADORES -->
-    <div class="stats-grid">
-      <!-- fila 1 -->
-      <div class="stat-card left">
-        <div class="stat-title">Duplicates removed</div>
-        <div class="stat-value" id="dup">0</div>
-      </div>
-
-      <div class="stat-card right">
-        <div class="stat-title">Music normalized</div>
-        <div class="stat-value" id="music">0</div>
-      </div>
-
-      <!-- fila 2 -->
-      <div class="stat-card left">
-        <div class="stat-title">Total scanned</div>
-        <div class="stat-value" id="total">0</div>
-      </div>
-
-      <div class="stat-card right">
-        <div class="stat-title">ID</div>
-        <div class="stat-value" id="folder">---</div>
-      </div>
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      <span class="logo-text">YT Bookmark Cleaner</span>
     </div>
-
-    <select id="folderSelect"></select>
-
-    <div class="grid">
-      <button id="clean">Full Clean</button>
-
-      <select id="export">
-        <option value="">Export</option>
-        <option value="txt">Text</option>
-        <option value="html">HTML</option>
-        <option value="csv">CSV</option>
-      </select>
+    <div class="header-actions">
+      <button class="ib" id="btn-window" title="Pop out window">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+      </button>
+      <button class="ib" id="btn-tab" title="Open in tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/></svg>
+      </button>
+      <button class="ib" id="btn-theme" title="Toggle theme">
+        <svg id="icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg id="icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
     </div>
-
-    <button id="undo">Undo</button>
-    <footer>Press Ctrl + Shift + F to open/hide</footer>
   </div>
-  <script src="ui.js"></script>
+
+  <!-- TOTAL COUNTER -->
+  <div class="total-block">
+    <span class="total-num" id="total-num">—</span>
+    <span class="total-lbl">Total songs</span>
+  </div>
+
+  <!-- SYNC STATS (visible after sync) -->
+  <div class="sync-stats" id="sync-stats">
+    <div class="stat">
+      <div class="stat-val" id="s-scanned">0</div>
+      <div class="stat-lbl">Scanned</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val acc" id="s-synced">0</div>
+      <div class="stat-lbl">Synced</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="s-skipped">0</div>
+      <div class="stat-lbl">Skipped</div>
+    </div>
+  </div>
+
+  <!-- FOLDER -->
+  <div>
+    <div class="field-label">Bookmark folder</div>
+    <select id="folderSelect"></select>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SYNC -->
+  <div>
+    <div class="st">Sync &amp; Clean</div>
+    <div class="btn-row">
+      <button class="btn acc" id="btn-sync">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Sync YT↔Music
+      </button>
+      <button class="btn" id="btn-undo">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        Undo
+      </button>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- EXPORT (collapsible) -->
+  <div>
+    <div class="export-toggle st" id="export-toggle">
+      <span>Export</span>
+      <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="export-body" id="export-body">
+      <button class="btn" data-export="txt">TXT</button>
+      <button class="btn" data-export="csv">CSV</button>
+      <button class="btn" data-export="html">HTML</button>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- DOWNLOAD -->
+  <div>
+    <div class="st">Download with yt-dlp</div>
+
+    <div class="fmt-row">
+      <span class="fmt-label">Format</span>
+      <div class="tg">
+        <button class="to on" data-fmt="m4a">m4a</button>
+        <button class="to" data-fmt="mp3">mp3</button>
+      </div>
+    </div>
+
+    <div class="field-label">Output folder</div>
+    <div class="dl-path" id="path-display">
+      <span id="path-text">Click to select folder…</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </div>
+    <input type="file" id="folder-picker" webkitdirectory style="display:none"/>
+
+    <button class="btn primary full" id="btn-download" style="margin-top:10px">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download All
+    </button>
+  </div>
+
+  <!-- PROGRESS -->
+  <div id="progress-section">
+    <div class="prog-header">
+      <span class="prog-filename" id="dl-filename">—</span>
+      <div class="prog-stats">
+        <span class="prog-stat">Size <span id="dl-size">—</span></span>
+        <span class="prog-stat">ETA <span id="dl-eta">—</span></span>
+      </div>
+    </div>
+    <div class="prog-bar-wrap"><div class="prog-bar" id="dl-bar"></div></div>
+    <div class="prog-counter">Track <span id="dl-current">0</span> / <span id="dl-total">0</span> — <span id="dl-pct">0%</span></div>
+    <div class="log-area" id="dl-log"></div>
+  </div>
+
+  <footer>Ctrl+Shift+F open · Ctrl+D like+bookmark</footer>
+</div>
+<div id="toast"></div>
+<script src="ui.js"></script>
 </body>
 </html>
