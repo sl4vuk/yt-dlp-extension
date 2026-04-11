@@ -346,11 +346,21 @@ function appendLog(msg, cls = '') {
 function initResizableSidebar() {
   if (!splitter) return;
   let active = false;
+  const COMPACT_BREAKPOINT = 980;
+
+  function resetSidebarWidthForCompactLayout() {
+    if (window.innerWidth < COMPACT_BREAKPOINT) {
+      sidebar.style.width = '';
+    }
+  }
+
+  resetSidebarWidthForCompactLayout();
+  window.addEventListener('resize', resetSidebarWidthForCompactLayout);
 
   splitter.addEventListener('mousedown', () => { active = true; });
   window.addEventListener('mouseup', () => { active = false; });
   window.addEventListener('mousemove', e => {
-    if (!active || window.innerWidth < 860) return;
+    if (!active || window.innerWidth < COMPACT_BREAKPOINT) return;
     const appLeft = layout.getBoundingClientRect().left;
     const width = Math.max(300, Math.min(560, e.clientX - appLeft));
     sidebar.style.width = `${width}px`;
