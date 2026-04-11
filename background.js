@@ -8,11 +8,40 @@ let downloadQueue = [];
 let isDownloading = false;
 let currentIndex = 0;
 let currentTitle = '';
+let cancelRequested = false;
+let queueCancelled = false;
+
+let downloadStats = {
+  downloaded: 0,
+  ageRestricted: 0,
+  unavailable: 0,
+  copyright: 0,
+  terminated: 0
+};
+
+async function loadDownloadStats() {
+  const data = await new Promise(r => chrome.storage.local.get('downloadStatsJson', r));
+  if (!data?.downloadStatsJson) return;
+  try {
+    const parsed = JSON.parse(data.downloadStatsJson);
+    downloadStats = {
+      downloaded: Number(parsed.downloaded) || 0,
+      ageRestricted: Number(parsed.ageRestricted) || 0,
+      unavailable: Number(parsed.unavailable) || 0,
+      copyright: Number(parsed.copyright) || 0,
+      terminated: Number(parsed.terminated) || 0
+    };
+  } catch {}
+}
+
+function persistDownloadStats() {
+  chrome.storage.local.set({ downloadStatsJson: JSON.stringify(downloadStats) });
+}
 
 // ── OPEN UI ──────────────────────────────────────────────────────
-// All entry points use the SAME dimensions (360×640).
-const UI_WIDTH  = 360;
-const UI_HEIGHT = 640;
+// Wide layout in window/tab mode with resizable sidebar.
+const UI_WIDTH  = 1240;
+const UI_HEIGHT = 760;
 
 chrome.commands?.onCommand.addListener(cmd => {
   if (cmd === 'toggle-ui') openPopup();
@@ -23,7 +52,7 @@ chrome.action.onClicked.addListener(() => openPopup());
 
 function openPopup() {
   chrome.windows.create({
-    url: chrome.runtime.getURL('ui.html'),
+    url: chrome.runtime.getURL('ui.html?mode=popup'),
     type: 'popup',
     width: UI_WIDTH,
     height: UI_HEIGHT
@@ -268,12 +297,49 @@ function resolvePathNative(folderName) {
 }
 
 // ── BACKGROUND DOWNLOAD QUEUE ─────────────────────────────────────
+
+function classifyError(errText = '') {
+  const text = String(errText).toLowerCase();
+  if (text.includes('confirm your age') || text.includes('inappropriate for some users')) {
+    return 'ageRestricted';
+  }
+  if (text.includes('copyright claim')) {
+    return 'copyright';
+  }
+  if (text.includes('account associated with this video has been terminated') || text.includes('account has been terminated') || text.includes('channel has been terminated')) {
+    return 'terminated';
+  }
+  if (text.includes('video unavailable') || text.includes('not available')) {
+    return 'unavailable';
+  }
+  return null;
+}
+
+function updateStatsFromResult(result) {
+  if (!result || result.skipped) return;
+  if (result.success) {
+    downloadStats.downloaded += 1;
+    persistDownloadStats();
+    return;
+  }
+  const bucket = classifyError(result.error || '');
+  if (bucket) {
+    downloadStats[bucket] += 1;
+    persistDownloadStats();
+  }
+}
+
 async function processQueue() {
   if (isDownloading) return;
 
   isDownloading = true;
+  queueCancelled = false;
 
   while (currentIndex < downloadQueue.length) {
+    if (cancelRequested) {
+      queueCancelled = true;
+      break;
+    }
     const item = downloadQueue[currentIndex];
 
     chrome.runtime.sendMessage({
@@ -287,6 +353,8 @@ async function processQueue() {
 
     const result = await downloadTrackNative(item);
 
+    updateStatsFromResult(result);
+
     chrome.runtime.sendMessage({
       type:    'QUEUE_RESULT',
       videoId: item.videoId,
@@ -297,13 +365,15 @@ async function processQueue() {
     currentIndex++;
   }
 
-  chrome.runtime.sendMessage({ type: 'QUEUE_DONE' }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'QUEUE_DONE', cancelled: queueCancelled }).catch(() => {});
 
   // reset
   downloadQueue = [];
   currentIndex  = 0;
   currentTitle  = '';
   isDownloading = false;
+  cancelRequested = false;
+  queueCancelled = false;
 }
 
 
@@ -342,7 +412,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'START_DOWNLOAD_QUEUE') {
     downloadQueue = msg.queue;
     currentIndex  = 0;
+    cancelRequested = false;
     processQueue();
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (msg.type === 'CANCEL_DOWNLOAD_QUEUE') {
+    cancelRequested = true;
+    const port = getNativePort();
+    if (port) {
+      try { port.postMessage({ action: 'cancel' }); } catch {}
+    }
     sendResponse({ ok: true });
     return true;
   }
@@ -362,7 +442,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === 'OPEN_WINDOW') {
     chrome.windows.create({
-      url:    chrome.runtime.getURL('ui.html'),
+      url:    chrome.runtime.getURL('ui.html?mode=popup'),
       type:   'popup',
       width:  UI_WIDTH,
       height: UI_HEIGHT
@@ -381,4 +461,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse(getQueueState());
     return true;
   }
+  if (msg.type === 'GET_DOWNLOAD_STATS') {
+    sendResponse({ stats: downloadStats });
+    return true;
+  }
 });
+
+
+loadDownloadStats();
