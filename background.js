@@ -8,11 +8,20 @@ let downloadQueue = [];
 let isDownloading = false;
 let currentIndex = 0;
 let currentTitle = '';
+let cancelRequested = false;
+let queueCancelled = false;
+
+let downloadStats = {
+  downloaded: 0,
+  ageRestricted: 0,
+  unavailable: 0,
+  copyright: 0
+};
 
 // ── OPEN UI ──────────────────────────────────────────────────────
-// All entry points use the SAME dimensions (360×640).
-const UI_WIDTH  = 360;
-const UI_HEIGHT = 640;
+// Wide layout in window/tab mode with resizable sidebar.
+const UI_WIDTH  = 1240;
+const UI_HEIGHT = 760;
 
 chrome.commands?.onCommand.addListener(cmd => {
   if (cmd === 'toggle-ui') openPopup();
@@ -268,12 +277,42 @@ function resolvePathNative(folderName) {
 }
 
 // ── BACKGROUND DOWNLOAD QUEUE ─────────────────────────────────────
+
+function classifyError(errText = '') {
+  const text = String(errText).toLowerCase();
+  if (text.includes('confirm your age') || text.includes('inappropriate for some users')) {
+    return 'ageRestricted';
+  }
+  if (text.includes('copyright claim')) {
+    return 'copyright';
+  }
+  if (text.includes('video unavailable') || text.includes('not available')) {
+    return 'unavailable';
+  }
+  return null;
+}
+
+function updateStatsFromResult(result) {
+  if (!result || result.skipped) return;
+  if (result.success) {
+    downloadStats.downloaded += 1;
+    return;
+  }
+  const bucket = classifyError(result.error || '');
+  if (bucket) downloadStats[bucket] += 1;
+}
+
 async function processQueue() {
   if (isDownloading) return;
 
   isDownloading = true;
+  queueCancelled = false;
 
   while (currentIndex < downloadQueue.length) {
+    if (cancelRequested) {
+      queueCancelled = true;
+      break;
+    }
     const item = downloadQueue[currentIndex];
 
     chrome.runtime.sendMessage({
@@ -287,6 +326,8 @@ async function processQueue() {
 
     const result = await downloadTrackNative(item);
 
+    updateStatsFromResult(result);
+
     chrome.runtime.sendMessage({
       type:    'QUEUE_RESULT',
       videoId: item.videoId,
@@ -297,13 +338,15 @@ async function processQueue() {
     currentIndex++;
   }
 
-  chrome.runtime.sendMessage({ type: 'QUEUE_DONE' }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'QUEUE_DONE', cancelled: queueCancelled }).catch(() => {});
 
   // reset
   downloadQueue = [];
   currentIndex  = 0;
   currentTitle  = '';
   isDownloading = false;
+  cancelRequested = false;
+  queueCancelled = false;
 }
 
 
@@ -342,7 +385,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'START_DOWNLOAD_QUEUE') {
     downloadQueue = msg.queue;
     currentIndex  = 0;
+    cancelRequested = false;
     processQueue();
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (msg.type === 'CANCEL_DOWNLOAD_QUEUE') {
+    cancelRequested = true;
+    const port = getNativePort();
+    if (port) {
+      try { port.postMessage({ action: 'cancel' }); } catch {}
+    }
     sendResponse({ ok: true });
     return true;
   }
@@ -379,6 +432,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === 'GET_QUEUE_STATE') {
     sendResponse(getQueueState());
+    return true;
+  }
+  if (msg.type === 'GET_DOWNLOAD_STATS') {
+    sendResponse({ stats: downloadStats });
     return true;
   }
 });

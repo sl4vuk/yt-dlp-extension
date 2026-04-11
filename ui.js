@@ -1,4 +1,4 @@
-/* ui.js — YT Bookmark Cleaner v2.4 */
+/* ui.js — YT Bookmark Cleaner v2.5 */
 'use strict';
 
 const store = {
@@ -6,40 +6,47 @@ const store = {
   set: o => new Promise(r => chrome.storage.local.set(o, r)),
 };
 
-// ── DOM ──────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-const html        = document.documentElement;
-const folderSel   = $('folderSelect');
-const totalNum    = $('total-num');
-const syncStats   = $('sync-stats');
-const sScanned    = $('s-scanned');
-const sSynced     = $('s-synced');
-const sSkipped    = $('s-skipped');
-const btnSync     = $('btn-sync');
-const btnUndo     = $('btn-undo');
+const html = document.documentElement;
+const folderSel = $('folderSelect');
+const totalNum = $('total-num');
+const syncStats = $('sync-stats');
+const sScanned = $('s-scanned');
+const sSynced = $('s-synced');
+const sSkipped = $('s-skipped');
+const btnSync = $('btn-sync');
+const btnUndo = $('btn-undo');
 const btnDownload = $('btn-download');
-const btnTheme    = $('btn-theme');
-const iconMoon    = $('icon-moon');
-const iconSun     = $('icon-sun');
-const pathInput   = $('path-input');    // <-- text input, always visible
-const pathBrowse  = $('path-browse');   // <-- browse button
-const progressSec = $('progress-section');
-const dlBar       = $('dl-bar');
-const dlFilename  = $('dl-filename');
-const dlSize      = $('dl-size');
-const dlEta       = $('dl-eta');
-const dlCurrent   = $('dl-current');
-const dlTotal     = $('dl-total');
-const dlPct       = $('dl-pct');
-const dlLog       = $('dl-log');
-const toastEl     = $('toast');
-const exportToggle= $('export-toggle');
-const exportBody  = $('export-body');
+const btnTheme = $('btn-theme');
+const iconMoon = $('icon-moon');
+const iconSun = $('icon-sun');
+const pathInput = $('path-input');
+const pathBrowse = $('path-browse');
+const dlBar = $('dl-bar');
+const dlFilename = $('dl-filename');
+const dlSize = $('dl-size');
+const dlEta = $('dl-eta');
+const dlCurrent = $('dl-current');
+const dlTotal = $('dl-total');
+const dlPct = $('dl-pct');
+const dlLog = $('dl-log');
+const toastEl = $('toast');
+const exportToggle = $('export-toggle');
+const exportBody = $('export-body');
+const layout = $('layout');
+const sidebar = $('sidebar');
+const splitter = $('splitter');
+
+const cDownloaded = $('c-downloaded');
+const cAge = $('c-age');
+const cUnavailable = $('c-unavailable');
+const cCopyright = $('c-copyright');
 
 let selectedFormat = 'm4a';
 let toastTimer;
+let pathSaveTimer;
+let isDownloading = false;
 
-// ── TOAST ─────────────────────────────────────────────────────────
 function toast(msg) {
   toastEl.textContent = msg;
   toastEl.classList.add('show');
@@ -47,19 +54,44 @@ function toast(msg) {
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
 }
 
-// ── THEME ─────────────────────────────────────────────────────────
 function applyTheme(t) {
   html.setAttribute('data-theme', t);
-  iconMoon.style.display = t === 'dark'  ? '' : 'none';
-  iconSun.style.display  = t === 'light' ? '' : 'none';
+  iconMoon.style.display = t === 'dark' ? '' : 'none';
+  iconSun.style.display = t === 'light' ? '' : 'none';
 }
+
+function applyDownloadButtonState(downloading) {
+  isDownloading = !!downloading;
+  btnDownload.textContent = downloading ? 'Cancel' : 'Download All';
+  btnDownload.classList.toggle('cancel', downloading);
+}
+
+function normalizeErrorStats(raw = {}) {
+  return {
+    downloaded: raw.downloaded || 0,
+    ageRestricted: raw.ageRestricted || 0,
+    unavailable: raw.unavailable || 0,
+    copyright: raw.copyright || 0,
+  };
+}
+
+async function loadErrorStats() {
+  const res = await new Promise(resolve => {
+    chrome.runtime.sendMessage({ type: 'GET_DOWNLOAD_STATS' }, r => resolve(r || {}));
+  });
+  const stats = normalizeErrorStats(res.stats);
+  cDownloaded.textContent = stats.downloaded;
+  cAge.textContent = stats.ageRestricted;
+  cUnavailable.textContent = stats.unavailable;
+  cCopyright.textContent = stats.copyright;
+}
+
 btnTheme.addEventListener('click', async () => {
   const nxt = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   applyTheme(nxt);
   await store.set({ theme: nxt });
 });
 
-// ── VIEW MODES ────────────────────────────────────────────────────
 $('btn-window').addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'OPEN_WINDOW' });
   window.close();
@@ -69,7 +101,6 @@ $('btn-tab').addEventListener('click', () => {
   window.close();
 });
 
-// ── EXPORT COLLAPSIBLE ────────────────────────────────────────────
 exportToggle.addEventListener('click', () => {
   const open = exportBody.classList.toggle('open');
   exportToggle.classList.toggle('open', open);
@@ -81,26 +112,22 @@ document.querySelectorAll('[data-export]').forEach(btn => {
     const fid = folderSel.value;
     if (!fid) { toast('Select a folder first'); return; }
     chrome.bookmarks.getChildren(fid, items => {
-      const bms  = items.filter(b => b.url);
+      const bms = items.filter(b => b.url);
       let content = '', mime = 'text/plain', ext = fmt;
-      if (fmt === 'txt') {
-        content = bms.map(b => `${b.title || ''}\n${b.url}\n`).join('\n');
-      }
+      if (fmt === 'txt') content = bms.map(b => `${b.title || ''}\n${b.url}\n`).join('\n');
       if (fmt === 'csv') {
         mime = 'text/csv';
-        content = 'title,url\n' + bms
-          .map(b => `"${(b.title||'').replace(/"/g,'""')}","${b.url}"`)
-          .join('\n');
+        content = 'title,url\n' + bms.map(b => `"${(b.title || '').replace(/"/g, '""')}","${b.url}"`).join('\n');
       }
       if (fmt === 'html') {
         mime = 'text/html';
-        const now   = Math.floor(Date.now() / 1000);
-        const links = bms.map(b => `<DT><A HREF="${b.url}" ADD_DATE="${now}">${esc(b.title||'')}</A>`).join('\n');
+        const now = Math.floor(Date.now() / 1000);
+        const links = bms.map(b => `<DT><A HREF="${b.url}" ADD_DATE="${now}">${esc(b.title || '')}</A>`).join('\n');
         content = `<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n${links}\n</DL><p>`;
       }
       const blob = new Blob([content], { type: mime });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
       a.href = url; a.download = `bookmarks.${ext}`; a.click();
       URL.revokeObjectURL(url);
       toast(`Exported as ${fmt.toUpperCase()}`);
@@ -109,10 +136,9 @@ document.querySelectorAll('[data-export]').forEach(btn => {
 });
 
 function esc(s) {
-  return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  return String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
-// ── FORMAT TOGGLE ─────────────────────────────────────────────────
 document.querySelectorAll('.to').forEach(b => {
   b.addEventListener('click', async () => {
     document.querySelectorAll('.to').forEach(x => x.classList.remove('on'));
@@ -122,7 +148,6 @@ document.querySelectorAll('.to').forEach(b => {
   });
 });
 
-// ── FOLDER SELECT + TOTAL COUNTER ────────────────────────────────
 function buildTree(nodes, prefix = '') {
   nodes.forEach(n => {
     if (!n.url) {
@@ -149,15 +174,11 @@ folderSel.addEventListener('change', async () => {
   syncStats.classList.remove('show');
 });
 
-// ── OUTPUT PATH — TEXT INPUT (persists across sessions) ───────────
 pathInput.addEventListener('change', async () => {
   const val = pathInput.value.trim();
   pathInput.classList.toggle('has-path', !!val);
   await store.set({ downloadPath: val });
 });
-
-// Also save while user types (debounced)
-let pathSaveTimer;
 pathInput.addEventListener('input', () => {
   clearTimeout(pathSaveTimer);
   pathSaveTimer = setTimeout(async () => {
@@ -170,12 +191,10 @@ pathInput.addEventListener('input', () => {
 pathBrowse.addEventListener('click', async () => {
   try {
     const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    const name   = handle.name;
-
+    const name = handle.name;
     const res = await new Promise(resolve => {
       chrome.runtime.sendMessage({ type: 'RESOLVE_PATH', folderName: name }, r => resolve(r));
     });
-
     if (res?.path) {
       pathInput.value = res.path;
       pathInput.classList.add('has-path');
@@ -189,12 +208,9 @@ pathBrowse.addEventListener('click', async () => {
       }
       toast(`Folder "${name}" selected — edit the path above to set the full location`);
     }
-  } catch {
-    // User cancelled — do nothing
-  }
+  } catch {}
 });
 
-// ── SYNC ─────────────────────────────────────────────────────────
 btnSync.addEventListener('click', async () => {
   const fid = folderSel.value;
   if (!fid) { toast('Select a folder first'); return; }
@@ -206,8 +222,8 @@ btnSync.addEventListener('click', async () => {
     btnSync.disabled = false;
     btnSync.innerHTML = orig;
     if (!res) { toast('Error'); return; }
-    sScanned.textContent = res.total   ?? 0;
-    sSynced.textContent  = res.synced  ?? 0;
+    sScanned.textContent = res.total ?? 0;
+    sSynced.textContent = res.synced ?? 0;
     sSkipped.textContent = res.skipped ?? 0;
     syncStats.classList.add('show');
     refreshTotal(fid);
@@ -215,7 +231,6 @@ btnSync.addEventListener('click', async () => {
   });
 });
 
-// ── UNDO ──────────────────────────────────────────────────────────
 btnUndo.addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'UNDO' }, () => {
     toast('Undo applied');
@@ -223,8 +238,15 @@ btnUndo.addEventListener('click', () => {
   });
 });
 
-// ── DOWNLOAD ─────────────────────────────────────────────────────
 btnDownload.addEventListener('click', async () => {
+  if (isDownloading) {
+    chrome.runtime.sendMessage({ type: 'CANCEL_DOWNLOAD_QUEUE' }, () => {
+      toast('Download cancelled');
+      applyDownloadButtonState(false);
+    });
+    return;
+  }
+
   const fid = folderSel.value;
   if (!fid) { toast('Select a bookmark folder first'); return; }
 
@@ -240,48 +262,46 @@ btnDownload.addEventListener('click', async () => {
     if (!bms.length) { toast('No bookmarks found'); return; }
 
     const queue = [];
-    const seen  = new Set();
+    const seen = new Set();
 
     bms.forEach(b => {
       try {
-        const u   = new URL(b.url);
+        const u = new URL(b.url);
         const vid = u.searchParams.get('v');
         if (!vid || seen.has(vid)) return;
         seen.add(vid);
         queue.push({
-          url:        `https://www.youtube.com/watch?v=${vid}`,
-          videoId:    vid,
-          title:      b.title,
-          format:     selectedFormat,
+          url: `https://www.youtube.com/watch?v=${vid}`,
+          videoId: vid,
+          title: b.title,
+          format: selectedFormat,
           outputPath
         });
       } catch {}
     });
 
-    chrome.runtime.sendMessage({ type: 'START_DOWNLOAD_QUEUE', queue });
+    chrome.runtime.sendMessage({ type: 'START_DOWNLOAD_QUEUE', queue }, () => {
+      applyDownloadButtonState(true);
+    });
     toast('Download started in background');
 
-    // Show progress section immediately
-    progressSec.classList.add('visible');
-    dlLog.innerHTML        = '';
-    dlTotal.textContent    = queue.length;
-    dlCurrent.textContent  = '0';
+    dlLog.innerHTML = '';
+    dlTotal.textContent = queue.length;
+    dlCurrent.textContent = '0';
     dlFilename.textContent = 'Starting…';
   });
 });
 
-// ── QUEUE PROGRESS LISTENER ───────────────────────────────────────
 chrome.runtime.onMessage.addListener(msg => {
-
   if (msg.type === 'QUEUE_UPDATE') {
-    progressSec.classList.add('visible');
-    dlCurrent.textContent  = msg.current;
-    dlTotal.textContent    = msg.total;
+    applyDownloadButtonState(true);
+    dlCurrent.textContent = msg.current;
+    dlTotal.textContent = msg.total;
     dlFilename.textContent = msg.title;
-    dlBar.style.width      = '0%';
-    dlPct.textContent      = '—';
-    dlSize.textContent     = '—';
-    dlEta.textContent      = '—';
+    dlBar.style.width = '0%';
+    dlPct.textContent = '—';
+    dlSize.textContent = '—';
+    dlEta.textContent = '—';
   }
 
   if (msg.type === 'DOWNLOAD_PROGRESS') {
@@ -289,7 +309,7 @@ chrome.runtime.onMessage.addListener(msg => {
     dlBar.style.width = pct + '%';
     dlPct.textContent = pct + '%';
     if (msg.size) dlSize.textContent = msg.size;
-    if (msg.eta)  dlEta.textContent  = msg.eta;
+    if (msg.eta) dlEta.textContent = msg.eta;
   }
 
   if (msg.type === 'QUEUE_RESULT') {
@@ -298,17 +318,18 @@ chrome.runtime.onMessage.addListener(msg => {
       : msg.result.success
         ? `✓ ${msg.title}${msg.result.warning ? ` (${msg.result.warning})` : ''}`
         : `✗ ${msg.title}: ${msg.result.error || ''}`;
-
     appendLog(line, msg.result.skipped ? 'skip' : msg.result.success ? 'ok' : 'err');
+    loadErrorStats();
   }
 
   if (msg.type === 'QUEUE_DONE') {
-    dlFilename.textContent = 'Done';
-    dlBar.style.width      = '100%';
-    dlPct.textContent      = '100%';
-    toast('All downloads finished');
+    dlFilename.textContent = msg.cancelled ? 'Cancelled' : 'Done';
+    dlBar.style.width = msg.cancelled ? '0%' : '100%';
+    dlPct.textContent = msg.cancelled ? '—' : '100%';
+    applyDownloadButtonState(false);
+    toast(msg.cancelled ? 'Download cancelled' : 'All downloads finished');
+    loadErrorStats();
   }
-
 });
 
 function appendLog(msg, cls = '') {
@@ -319,51 +340,60 @@ function appendLog(msg, cls = '') {
   dlLog.scrollTop = dlLog.scrollHeight;
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
+function initResizableSidebar() {
+  if (!splitter) return;
+  let active = false;
+
+  splitter.addEventListener('mousedown', () => { active = true; });
+  window.addEventListener('mouseup', () => { active = false; });
+  window.addEventListener('mousemove', e => {
+    if (!active || window.innerWidth < 860) return;
+    const appLeft = layout.getBoundingClientRect().left;
+    const width = Math.max(300, Math.min(560, e.clientX - appLeft));
+    sidebar.style.width = `${width}px`;
+  });
+}
+
 async function init() {
   const saved = await store.get(['theme', 'format', 'downloadPath', 'lastFolder']);
-
   applyTheme(saved.theme || 'dark');
 
   if (saved.format) {
     selectedFormat = saved.format;
-    document.querySelectorAll('.to').forEach(b =>
-      b.classList.toggle('on', b.dataset.fmt === selectedFormat)
-    );
+    document.querySelectorAll('.to').forEach(b => b.classList.toggle('on', b.dataset.fmt === selectedFormat));
   }
 
-  // Restore path — just set the input value, no picker needed
   if (saved.downloadPath) {
     pathInput.value = saved.downloadPath;
     pathInput.classList.add('has-path');
   }
 
-  // Build bookmark folder tree
   await new Promise(r => chrome.bookmarks.getTree(tree => {
     folderSel.innerHTML = '';
     buildTree(tree);
     r();
   }));
 
-  // Restore last selected folder
   if (saved.lastFolder) {
     folderSel.value = saved.lastFolder;
     if (!folderSel.value) folderSel.selectedIndex = 0;
   }
 
   refreshTotal(folderSel.value);
+  loadErrorStats();
 
-  // If downloads are already running in background, restore visible state.
   const qState = await new Promise(resolve => {
     chrome.runtime.sendMessage({ type: 'GET_QUEUE_STATE' }, res => resolve(res || {}));
   });
 
   if (qState.isDownloading) {
-    progressSec.classList.add('visible');
+    applyDownloadButtonState(true);
     dlCurrent.textContent = qState.current || 0;
     dlTotal.textContent = qState.total || 0;
     dlFilename.textContent = qState.title || 'Downloading…';
   }
+
+  initResizableSidebar();
 }
 
 document.addEventListener('DOMContentLoaded', init);
