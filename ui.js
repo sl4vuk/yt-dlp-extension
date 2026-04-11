@@ -347,10 +347,35 @@ function initResizableSidebar() {
   if (!splitter) return;
   let active = false;
   const COMPACT_BREAKPOINT = 980;
+  const MIN_SIDEBAR_WIDTH = 300;
+  const MAX_SIDEBAR_WIDTH = 560;
+  const MIN_TERMINAL_WIDTH = 320;
+
+  function getSafeSidebarMaxWidth() {
+    const splitterWidth = splitter.getBoundingClientRect().width || 6;
+    const available = layout.clientWidth - splitterWidth - MIN_TERMINAL_WIDTH;
+    return Math.min(MAX_SIDEBAR_WIDTH, available);
+  }
+
+  function clampSidebarWidth(px) {
+    const maxWidth = getSafeSidebarMaxWidth();
+    if (maxWidth < MIN_SIDEBAR_WIDTH) {
+      sidebar.style.width = '';
+      return;
+    }
+    const safeWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(maxWidth, px));
+    sidebar.style.width = `${safeWidth}px`;
+  }
 
   function resetSidebarWidthForCompactLayout() {
     if (window.innerWidth < COMPACT_BREAKPOINT) {
       sidebar.style.width = '';
+      return;
+    }
+
+    if (sidebar.style.width) {
+      const raw = parseFloat(sidebar.style.width);
+      if (!Number.isNaN(raw)) clampSidebarWidth(raw);
     }
   }
 
@@ -362,8 +387,7 @@ function initResizableSidebar() {
   window.addEventListener('mousemove', e => {
     if (!active || window.innerWidth < COMPACT_BREAKPOINT) return;
     const appLeft = layout.getBoundingClientRect().left;
-    const width = Math.max(300, Math.min(560, e.clientX - appLeft));
-    sidebar.style.width = `${width}px`;
+    clampSidebarWidth(e.clientX - appLeft);
   });
 }
 
