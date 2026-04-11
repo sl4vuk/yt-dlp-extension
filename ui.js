@@ -43,7 +43,7 @@ const cUnavailable = $('c-unavailable');
 const cCopyright = $('c-copyright');
 const cTerminated = $('c-terminated');
 
-let selectedFormat = 'm4a';
+let selectedFormat = 'fast';
 let toastTimer;
 let pathSaveTimer;
 let isDownloading = false;
@@ -100,7 +100,7 @@ $('btn-window').addEventListener('click', () => {
   window.close();
 });
 $('btn-tab').addEventListener('click', () => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('ui.html') });
+  chrome.tabs.create({ url: chrome.runtime.getURL('ui.html?mode=tab') });
   window.close();
 });
 
@@ -358,11 +358,15 @@ function initResizableSidebar() {
 }
 
 async function init() {
+  const mode = new URLSearchParams(location.search).get('mode') || 'popup';
+  document.body.classList.toggle('tab-mode', mode === 'tab');
+  document.body.classList.toggle('popup-mode', mode !== 'tab');
+
   const saved = await store.get(['theme', 'format', 'downloadPath', 'lastFolder']);
   applyTheme(saved.theme || 'dark');
 
   if (saved.format) {
-    selectedFormat = saved.format;
+    selectedFormat = saved.format === 'm4a' ? 'fast' : saved.format;
     document.querySelectorAll('.to').forEach(b => b.classList.toggle('on', b.dataset.fmt === selectedFormat));
   }
 
@@ -396,7 +400,7 @@ async function init() {
     dlFilename.textContent = qState.title || 'Downloading…';
   }
 
-  initResizableSidebar();
+  if (mode === 'tab') initResizableSidebar();
 }
 
 document.addEventListener('DOMContentLoaded', init);

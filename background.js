@@ -52,7 +52,7 @@ chrome.action.onClicked.addListener(() => openPopup());
 
 function openPopup() {
   chrome.windows.create({
-    url: chrome.runtime.getURL('ui.html'),
+    url: chrome.runtime.getURL('ui.html?mode=popup'),
     type: 'popup',
     width: UI_WIDTH,
     height: UI_HEIGHT
@@ -442,7 +442,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === 'OPEN_WINDOW') {
     chrome.windows.create({
-      url:    chrome.runtime.getURL('ui.html'),
+      url:    chrome.runtime.getURL('ui.html?mode=popup'),
       type:   'popup',
       width:  UI_WIDTH,
       height: UI_HEIGHT

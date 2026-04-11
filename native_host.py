@@ -207,7 +207,7 @@ def download(msg):
     url = msg.get("url", "")
     video_id = msg.get("videoId", "")
     title = msg.get("title", video_id)
-    fmt = msg.get("format", "m4a")
+    fmt = msg.get("format", "fast")
     out_path = os.path.expanduser(msg.get("outputPath", os.path.expanduser("~")))
 
     os.makedirs(out_path, exist_ok=True)
@@ -232,10 +232,10 @@ def download(msg):
 
     if fmt == "mp3" and ffmpeg_ok:
         cmd += ["--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"]
-    elif fmt == "m4a":
-        cmd += ["--format", "bestaudio[ext=m4a]/bestaudio"]
+    elif fmt == "fast":
+        cmd += ["--format", "bestaudio/best"]
     else:
-        cmd += ["--format", "bestaudio"]
+        cmd += ["--format", "bestaudio/best"]
 
     cmd.append(url)
 
