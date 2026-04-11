@@ -10,7 +10,12 @@ import struct
 import os
 import subprocess
 import re
+import glob
 
+
+ACTIVE_PROC = None
+ACTIVE_VIDEO_ID = None
+ACTIVE_OUTPUT_PATH = None
 
 def read_message():
     raw_length = sys.stdin.buffer.read(4)
@@ -159,6 +164,36 @@ def resolve_path(folder_name):
     send_message({"type": "resolved_path", "path": fallback})
 
 
+def cleanup_partial_files(output_path, video_id):
+    if not output_path or not os.path.isdir(output_path):
+        return
+
+    patterns = [
+        os.path.join(output_path, f"*{video_id}*.part"),
+        os.path.join(output_path, f"*{video_id}*.ytdl"),
+        os.path.join(output_path, f"*{video_id}*.temp"),
+    ]
+
+    for pattern in patterns:
+        for path in glob.glob(pattern):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+
+
+def cancel_active_download():
+    global ACTIVE_PROC
+    if ACTIVE_PROC and ACTIVE_PROC.poll() is None:
+        try:
+            ACTIVE_PROC.terminate()
+        except Exception:
+            try:
+                ACTIVE_PROC.kill()
+            except Exception:
+                pass
+
+
 def has_ffmpeg():
     for candidate in ("ffmpeg", "ffprobe"):
         try:
@@ -181,7 +216,7 @@ def download(msg):
         send_message({"type": "skipped", "videoId": video_id})
         return
 
-    output_template = os.path.join(out_path, "%(title)s.%(ext)s")
+    output_template = os.path.join(out_path, "%(title)s [%(id)s].%(ext)s")
     ffmpeg_ok = has_ffmpeg()
 
     cmd = [
@@ -204,6 +239,8 @@ def download(msg):
 
     cmd.append(url)
 
+    global ACTIVE_PROC, ACTIVE_VIDEO_ID, ACTIVE_OUTPUT_PATH
+
     try:
         proc = subprocess.Popen(
             cmd,
@@ -214,6 +251,10 @@ def download(msg):
             encoding="utf-8",
             errors="replace",
         )
+
+        ACTIVE_PROC = proc
+        ACTIVE_VIDEO_ID = video_id
+        ACTIVE_OUTPUT_PATH = out_path
 
         last_lines = []
         downloaded_file = None
@@ -247,10 +288,13 @@ def download(msg):
 
         if proc.returncode != 0:
             detail = last_lines[-1] if last_lines else ""
+            cleanup_partial_files(out_path, video_id)
+            cancelled = proc.returncode in (-15, 143) or "interrupted by user" in detail.lower()
+            message = "Download cancelled" if cancelled else f"yt-dlp exited with code {proc.returncode}: {detail}".strip()
             send_message({
                 "type": "error",
                 "videoId": video_id,
-                "error": f"yt-dlp exited with code {proc.returncode}: {detail}".strip(),
+                "error": message,
             })
             return
 
@@ -268,13 +312,19 @@ def download(msg):
         send_message(payload)
 
     except FileNotFoundError:
+        cleanup_partial_files(out_path, video_id)
         send_message({
             "type": "error",
             "videoId": video_id,
             "error": "yt-dlp not found. Install it with: pip install yt-dlp",
         })
     except Exception as e:
+        cleanup_partial_files(out_path, video_id)
         send_message({"type": "error", "videoId": video_id, "error": str(e)})
+    finally:
+        ACTIVE_PROC = None
+        ACTIVE_VIDEO_ID = None
+        ACTIVE_OUTPUT_PATH = None
 
 
 def main():
@@ -288,6 +338,10 @@ def main():
             download(msg)
         elif action == "resolve_path":
             resolve_path(msg.get("folderName", ""))
+        elif action == "cancel":
+            cancel_active_download()
+            if ACTIVE_OUTPUT_PATH and ACTIVE_VIDEO_ID:
+                cleanup_partial_files(ACTIVE_OUTPUT_PATH, ACTIVE_VIDEO_ID)
 
 
 if __name__ == "__main__":
