@@ -29,6 +29,7 @@ html { font-size: 13px; font-family: var(--f); background: var(--bg); color: var
 body { background: var(--bg); min-height: 100vh; }
 
 #app { padding: 12px; min-height: 100vh; }
+body.popup-mode #app { width: 520px; min-width: 520px; max-width: 520px; }
 .layout { display: flex; flex-direction: column; gap: 10px; min-height: calc(100vh - 24px); }
 .sidebar {
   width: 100%;
@@ -151,4 +152,8 @@ footer { font-size: 10px; color: var(--tx3); text-align: center; letter-spacing:
   body.tab-mode .splitter { display: none; }
   body.tab-mode .sidebar { width: 100%; min-width: 0; }
   body.tab-mode .terminal-panel { min-height: 280px; }
+}
+
+@media (max-width: 540px) {
+  body.popup-mode #app { width: 100%; min-width: 0; max-width: none; }
 }
