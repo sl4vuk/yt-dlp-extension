@@ -41,6 +41,7 @@ const cDownloaded = $('c-downloaded');
 const cAge = $('c-age');
 const cUnavailable = $('c-unavailable');
 const cCopyright = $('c-copyright');
+const cTerminated = $('c-terminated');
 
 let selectedFormat = 'm4a';
 let toastTimer;
@@ -72,6 +73,7 @@ function normalizeErrorStats(raw = {}) {
     ageRestricted: raw.ageRestricted || 0,
     unavailable: raw.unavailable || 0,
     copyright: raw.copyright || 0,
+    terminated: raw.terminated || 0,
   };
 }
 
@@ -84,6 +86,7 @@ async function loadErrorStats() {
   cAge.textContent = stats.ageRestricted;
   cUnavailable.textContent = stats.unavailable;
   cCopyright.textContent = stats.copyright;
+  cTerminated.textContent = stats.terminated;
 }
 
 btnTheme.addEventListener('click', async () => {

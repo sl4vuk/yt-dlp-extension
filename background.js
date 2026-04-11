@@ -15,8 +15,28 @@ let downloadStats = {
   downloaded: 0,
   ageRestricted: 0,
   unavailable: 0,
-  copyright: 0
+  copyright: 0,
+  terminated: 0
 };
+
+async function loadDownloadStats() {
+  const data = await new Promise(r => chrome.storage.local.get('downloadStatsJson', r));
+  if (!data?.downloadStatsJson) return;
+  try {
+    const parsed = JSON.parse(data.downloadStatsJson);
+    downloadStats = {
+      downloaded: Number(parsed.downloaded) || 0,
+      ageRestricted: Number(parsed.ageRestricted) || 0,
+      unavailable: Number(parsed.unavailable) || 0,
+      copyright: Number(parsed.copyright) || 0,
+      terminated: Number(parsed.terminated) || 0
+    };
+  } catch {}
+}
+
+function persistDownloadStats() {
+  chrome.storage.local.set({ downloadStatsJson: JSON.stringify(downloadStats) });
+}
 
 // ── OPEN UI ──────────────────────────────────────────────────────
 // Wide layout in window/tab mode with resizable sidebar.
@@ -286,6 +306,9 @@ function classifyError(errText = '') {
   if (text.includes('copyright claim')) {
     return 'copyright';
   }
+  if (text.includes('account associated with this video has been terminated') || text.includes('account has been terminated') || text.includes('channel has been terminated')) {
+    return 'terminated';
+  }
   if (text.includes('video unavailable') || text.includes('not available')) {
     return 'unavailable';
   }
@@ -296,10 +319,14 @@ function updateStatsFromResult(result) {
   if (!result || result.skipped) return;
   if (result.success) {
     downloadStats.downloaded += 1;
+    persistDownloadStats();
     return;
   }
   const bucket = classifyError(result.error || '');
-  if (bucket) downloadStats[bucket] += 1;
+  if (bucket) {
+    downloadStats[bucket] += 1;
+    persistDownloadStats();
+  }
 }
 
 async function processQueue() {
@@ -439,3 +466,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+
+
+loadDownloadStats();
