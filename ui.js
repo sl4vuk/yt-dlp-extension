@@ -293,14 +293,13 @@ chrome.runtime.onMessage.addListener(msg => {
   }
 
   if (msg.type === 'QUEUE_RESULT') {
-    appendLog(
-      msg.result.skipped
-        ? `⟳ ${msg.title}`
-        : msg.result.success
-          ? `✓ ${msg.title}`
-          : `✗ ${msg.title}: ${msg.result.error || ''}`,
-      msg.result.skipped ? 'skip' : msg.result.success ? 'ok' : 'err'
-    );
+    const line = msg.result.skipped
+      ? `⟳ ${msg.title}`
+      : msg.result.success
+        ? `✓ ${msg.title}${msg.result.warning ? ` (${msg.result.warning})` : ''}`
+        : `✗ ${msg.title}: ${msg.result.error || ''}`;
+
+    appendLog(line, msg.result.skipped ? 'skip' : msg.result.success ? 'ok' : 'err');
   }
 
   if (msg.type === 'QUEUE_DONE') {
@@ -353,6 +352,18 @@ async function init() {
   }
 
   refreshTotal(folderSel.value);
+
+  // If downloads are already running in background, restore visible state.
+  const qState = await new Promise(resolve => {
+    chrome.runtime.sendMessage({ type: 'GET_QUEUE_STATE' }, res => resolve(res || {}));
+  });
+
+  if (qState.isDownloading) {
+    progressSec.classList.add('visible');
+    dlCurrent.textContent = qState.current || 0;
+    dlTotal.textContent = qState.total || 0;
+    dlFilename.textContent = qState.title || 'Downloading…';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

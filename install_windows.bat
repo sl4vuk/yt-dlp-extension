@@ -24,17 +24,44 @@ if "!PYTHON!"=="" (
 )
 echo [OK] Python found: !PYTHON!
 
-:: ── 2. Install / upgrade yt-dlp ─────────────────────────────────
+:: ── 2. Install / upgrade Python deps ─────────────────────────────
 echo.
-echo Installing yt-dlp...
-!PYTHON! -m pip install --upgrade yt-dlp
+echo Installing yt-dlp + mutagen...
+!PYTHON! -m pip install --upgrade pip yt-dlp mutagen
 if errorlevel 1 (
-    echo [ERROR] Failed to install yt-dlp. Check your internet connection.
+    echo [ERROR] Failed to install Python dependencies. Check your internet connection.
     pause & exit /b 1
 )
-echo [OK] yt-dlp installed.
+echo [OK] Python dependencies installed.
 
-:: ── 3. Locate native_host.py (same folder as this .bat) ─────────
+:: ── 3. Install ffmpeg (best effort) ──────────────────────────────
+echo.
+echo Checking ffmpeg...
+where ffmpeg >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] ffmpeg already available in PATH.
+    goto :ffmpeg_done
+)
+
+echo [INFO] ffmpeg not found. Trying automatic install...
+where winget >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] winget not available. Please install ffmpeg manually:
+    echo        https://www.gyan.dev/ffmpeg/builds/  or  https://ffmpeg.org/download.html
+    goto :ffmpeg_done
+)
+
+winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements
+if errorlevel 1 (
+    echo [WARN] Automatic ffmpeg install failed.
+    echo        Install manually from https://www.gyan.dev/ffmpeg/builds/
+) else (
+    echo [OK] ffmpeg install command completed.
+)
+
+:ffmpeg_done
+
+:: ── 4. Locate native_host.py (same folder as this .bat) ─────────
 set SCRIPT_DIR=%~dp0
 set HOST_PY=%SCRIPT_DIR%native_host.py
 if not exist "!HOST_PY!" (
@@ -44,14 +71,14 @@ if not exist "!HOST_PY!" (
 )
 echo [OK] native_host.py found: !HOST_PY!
 
-:: ── 4. Get Python executable full path ──────────────────────────
+:: ── 5. Get Python executable full path ──────────────────────────
 for /f "delims=" %%I in ('where !PYTHON!') do set PYTHON_EXE=%%I
 echo [OK] Python exe: !PYTHON_EXE!
 
-:: ── 5. Ask for Extension ID ──────────────────────────────────────
+:: ── 6. Ask for Extension ID ──────────────────────────────────────
 echo.
 echo To find your Extension ID:
-echo   1. Open Chrome and go to:  chrome://extensions
+echo   1. Open Chrome and go to: chrome://extensions
 echo   2. Enable Developer mode (top-right toggle)
 echo   3. Find "YT Bookmark Cleaner" and copy its ID
 echo      (looks like: abcdefghijklmnopqrstuvwxyzabcdef)
@@ -62,7 +89,7 @@ if "!EXT_ID!"=="" (
     pause & exit /b 1
 )
 
-:: ── 6. Write com.ytbookmark.ytdlp.json ──────────────────────────
+:: ── 7. Write com.ytbookmark.ytdlp.json ──────────────────────────
 set JSON_PATH=%SCRIPT_DIR%com.ytbookmark.ytdlp.json
 
 :: Build a wrapper .bat that launches python native_host.py
@@ -72,9 +99,7 @@ echo @echo off > "!WRAPPER_BAT!"
 echo "!PYTHON_EXE!" "!HOST_PY!" >> "!WRAPPER_BAT!"
 
 :: Write the JSON manifest — escape backslashes
-set HOST_PY_ESC=!HOST_PY:\=\\!
 set WRAPPER_ESC=!WRAPPER_BAT:\=\\!
-
 (
 echo {
 echo   "name": "com.ytbookmark.ytdlp",
@@ -89,7 +114,7 @@ echo }
 
 echo [OK] Manifest written: !JSON_PATH!
 
-:: ── 7. Register in Windows Registry ─────────────────────────────
+:: ── 8. Register in Windows Registry ─────────────────────────────
 set REG_KEY=HKCU\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.ytbookmark.ytdlp
 reg add "!REG_KEY!" /ve /t REG_SZ /d "!JSON_PATH!" /f >nul
 if errorlevel 1 (
@@ -98,7 +123,7 @@ if errorlevel 1 (
 )
 echo [OK] Registry key set.
 
-:: ── 8. Done ─────────────────────────────────────────────────────
+:: ── 9. Done ─────────────────────────────────────────────────────
 echo.
 echo =========================================
 echo  Installation complete!
