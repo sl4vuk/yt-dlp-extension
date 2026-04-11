@@ -1,9 +1,18 @@
-/* background.js — YT Bookmark Cleaner v2.1 */
+/* background.js — YT Bookmark Cleaner v2.3 */
 'use strict';
 
 let undoStack = [];
 
+// ── DOWNLOAD QUEUE ───────────────────────────────────────────────
+let downloadQueue = [];
+let isDownloading = false;
+let currentIndex = 0;
+
 // ── OPEN UI ──────────────────────────────────────────────────────
+// All entry points use the SAME dimensions (360×640).
+const UI_WIDTH  = 360;
+const UI_HEIGHT = 640;
+
 chrome.commands?.onCommand.addListener(cmd => {
   if (cmd === 'toggle-ui') openPopup();
   if (cmd === 'auto-like') handleAutoLike();
@@ -15,8 +24,8 @@ function openPopup() {
   chrome.windows.create({
     url: chrome.runtime.getURL('ui.html'),
     type: 'popup',
-    width: 360,
-    height: 640
+    width: UI_WIDTH,
+    height: UI_HEIGHT
   });
 }
 
@@ -61,11 +70,9 @@ async function bookmarkCurrent(url, title) {
   const clean = cleanUrl(url);
   if (!clean) return;
 
-  // Get the saved target folder
   const { lastFolder } = await new Promise(r => chrome.storage.local.get('lastFolder', r));
-  const parentId = lastFolder || '1'; // fallback to Bookmarks bar
+  const parentId = lastFolder || '1';
 
-  // Check if already bookmarked in that folder
   const children = await new Promise(r => chrome.bookmarks.getChildren(parentId, r));
   const vid = extractVideoId(clean);
   const alreadyExists = children.some(b => {
@@ -79,26 +86,18 @@ async function bookmarkCurrent(url, title) {
 }
 
 // ── SYNC FOLDER ──────────────────────────────────────────────────
-// - Cleans all URLs (strips dirty params)
-// - Removes duplicates (same video ID, keep www version, delete music + dirty)
-// - Adds missing YT or Music counterpart
 async function syncFolder(folderId, sendResponse) {
   undoStack = [];
 
   const items = await new Promise(r => chrome.bookmarks.getChildren(folderId, r));
 
-  // Step 1: Clean & deduplicate by video ID
-  // Map: videoId -> { yt: bookmark, music: bookmark, dirties: [bookmark] }
   const byId = new Map();
 
   for (const b of items) {
     if (!b.url) continue;
     const clean = cleanUrl(b.url);
 
-    if (!clean) {
-      // Not a valid YT/Music watch URL (channel, playlist, etc.) — skip
-      continue;
-    }
+    if (!clean) continue;
 
     const vid = extractVideoId(clean);
     if (!vid) continue;
@@ -107,7 +106,7 @@ async function syncFolder(folderId, sendResponse) {
     const entry = byId.get(vid);
 
     const cleanedAlready = (b.url === clean);
-    const itIsYT = isYT(b.url) || isYT(clean);
+    const itIsYT    = isYT(b.url)    || isYT(clean);
     const itIsMusic = isMusic(b.url) || isMusic(clean);
 
     if (!cleanedAlready) {
@@ -117,38 +116,33 @@ async function syncFolder(folderId, sendResponse) {
     } else if (itIsMusic && !entry.music) {
       entry.music = b;
     } else {
-      // exact duplicate — mark as dirty to remove
       entry.dirties.push(b);
     }
   }
 
   let cleaned = 0;
-  let synced = 0;
+  let synced  = 0;
   const creates = [];
 
   for (const [vid, entry] of byId) {
-    // Remove dirty URLs and real duplicates
     for (const dirty of entry.dirties) {
       undoStack.push({ action: 'create', data: { parentId: folderId, title: dirty.title, url: dirty.url } });
       await new Promise(r => chrome.bookmarks.remove(dirty.id, r));
       cleaned++;
     }
 
-    // If there's a clean YT entry but we deleted a dirty one that was the only YT, reconstruct
-    const needYT  = !entry.yt;
+    const needYT    = !entry.yt;
     const needMusic = !entry.music;
 
     if (needYT && !needMusic) {
-      // Has music, create YT version
       const title = entry.music.title;
-      const data = { parentId: folderId, title, url: makeYTUrl(vid) };
+      const data  = { parentId: folderId, title, url: makeYTUrl(vid) };
       undoStack.push({ action: 'removeByUrl', url: data.url, parentId: folderId });
       creates.push(new Promise(r => chrome.bookmarks.create(data, r)));
       synced++;
     } else if (!needYT && needMusic) {
-      // Has YT, create Music version
       const title = entry.yt.title;
-      const data = { parentId: folderId, title, url: makeMusicUrl(vid) };
+      const data  = { parentId: folderId, title, url: makeMusicUrl(vid) };
       undoStack.push({ action: 'removeByUrl', url: data.url, parentId: folderId });
       creates.push(new Promise(r => chrome.bookmarks.create(data, r)));
       synced++;
@@ -157,17 +151,8 @@ async function syncFolder(folderId, sendResponse) {
 
   await Promise.all(creates);
 
-  // Count total unique songs now
-  const finalItems = await new Promise(r => chrome.bookmarks.getChildren(folderId, r));
-  const uniqueIds = new Set();
-  for (const b of finalItems) {
-    if (!b.url) continue;
-    const vid = extractVideoId(b.url);
-    if (vid) uniqueIds.add(vid);
-  }
-
   sendResponse({
-    total: byId.size,
+    total:   byId.size,
     synced,
     cleaned,
     skipped: byId.size - synced
@@ -210,30 +195,110 @@ function getNativePort() {
 
 function handleNativeMessage(msg) {
   if (!msg) return;
-  chrome.runtime.sendMessage({
-    type: 'DOWNLOAD_PROGRESS',
-    videoId: msg.videoId,
-    percent: msg.percent,
-    size: msg.size,
-    eta: msg.eta
-  }).catch(() => {});
 
+  // Forward progress updates to UI
+  if (msg.type === 'progress') {
+    chrome.runtime.sendMessage({
+      type: 'DOWNLOAD_PROGRESS',
+      videoId: msg.videoId,
+      percent: msg.percent,
+      size:    msg.size,
+      eta:     msg.eta
+    }).catch(() => {});
+  }
+
+  // Resolve the pending promise for done / error / skipped
   if (msg.type === 'done' || msg.type === 'error' || msg.type === 'skipped') {
     const p = pendingDownloads.get(msg.videoId);
-    if (p) { p.resolve({ success: msg.type !== 'error', error: msg.error }); pendingDownloads.delete(msg.videoId); }
+    if (p) {
+      p.resolve({
+        success: msg.type === 'done',
+        skipped: msg.type === 'skipped',
+        error:   msg.error || null
+      });
+      pendingDownloads.delete(msg.videoId);
+    }
+  }
+
+  // Handle RESOLVE_PATH response
+  if (msg.type === 'resolved_path') {
+    const p = pendingDownloads.get('__resolve__');
+    if (p) {
+      p.resolve({ path: msg.path || null });
+      pendingDownloads.delete('__resolve__');
+    }
   }
 }
 
 function downloadTrackNative({ url, videoId, title, format, outputPath }) {
   return new Promise(resolve => {
     const port = getNativePort();
-    if (!port) { resolve({ success: false, error: 'Native host not installed. See README.' }); return; }
+    if (!port) {
+      resolve({ success: false, error: 'Native host not installed. See README.' });
+      return;
+    }
     pendingDownloads.set(videoId, { resolve });
     port.postMessage({ action: 'download', url, videoId, title, format, outputPath, addMetadata: true });
     setTimeout(() => {
-      if (pendingDownloads.has(videoId)) { pendingDownloads.delete(videoId); resolve({ success: false, error: 'Timeout' }); }
+      if (pendingDownloads.has(videoId)) {
+        pendingDownloads.delete(videoId);
+        resolve({ success: false, error: 'Timeout' });
+      }
     }, 600000);
   });
+}
+
+function resolvePathNative(folderName) {
+  return new Promise(resolve => {
+    const port = getNativePort();
+    if (!port) { resolve({ path: null }); return; }
+
+    pendingDownloads.set('__resolve__', { resolve });
+    port.postMessage({ action: 'resolve_path', folderName });
+
+    setTimeout(() => {
+      if (pendingDownloads.has('__resolve__')) {
+        pendingDownloads.delete('__resolve__');
+        resolve({ path: null });
+      }
+    }, 5000);
+  });
+}
+
+// ── BACKGROUND DOWNLOAD QUEUE ─────────────────────────────────────
+async function processQueue() {
+  if (isDownloading) return;
+
+  isDownloading = true;
+
+  while (currentIndex < downloadQueue.length) {
+    const item = downloadQueue[currentIndex];
+
+    chrome.runtime.sendMessage({
+      type:    'QUEUE_UPDATE',
+      current: currentIndex + 1,
+      total:   downloadQueue.length,
+      title:   item.title
+    }).catch(() => {});
+
+    const result = await downloadTrackNative(item);
+
+    chrome.runtime.sendMessage({
+      type:    'QUEUE_RESULT',
+      videoId: item.videoId,
+      title:   item.title,
+      result
+    }).catch(() => {});
+
+    currentIndex++;
+  }
+
+  chrome.runtime.sendMessage({ type: 'QUEUE_DONE' }).catch(() => {});
+
+  // reset
+  downloadQueue = [];
+  currentIndex  = 0;
+  isDownloading = false;
 }
 
 // ── GET TOTAL UNIQUE SONGS ────────────────────────────────────────
@@ -259,18 +324,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     applyUndo().then(() => sendResponse({ ok: true }));
     return true;
   }
+  if (msg.type === 'START_DOWNLOAD_QUEUE') {
+    downloadQueue = msg.queue;
+    currentIndex  = 0;
+    processQueue();
+    sendResponse({ ok: true });
+    return true;
+  }
   if (msg.type === 'DOWNLOAD_TRACK') {
     downloadTrackNative({
-      url: cleanUrl(msg.url) || msg.url,
-      videoId: msg.videoId,
-      title: msg.title,
-      format: msg.format,
+      url:        cleanUrl(msg.url) || msg.url,
+      videoId:    msg.videoId,
+      title:      msg.title,
+      format:     msg.format,
       outputPath: msg.outputPath
     }).then(sendResponse);
     return true;
   }
+  if (msg.type === 'RESOLVE_PATH') {
+    resolvePathNative(msg.folderName).then(sendResponse);
+    return true;
+  }
   if (msg.type === 'OPEN_WINDOW') {
-    chrome.windows.create({ url: chrome.runtime.getURL('ui.html'), type: 'popup', width: 520, height: 700 });
+    chrome.windows.create({
+      url:    chrome.runtime.getURL('ui.html'),
+      type:   'popup',
+      width:  UI_WIDTH,
+      height: UI_HEIGHT
+    });
     return;
   }
   if (msg.type === 'BOOKMARK_CURRENT') {
