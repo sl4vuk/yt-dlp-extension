@@ -2,11 +2,6 @@
 """
 native_host.py — YT Bookmark Cleaner native messaging host
 Bridges Chrome extension ↔ yt-dlp
-
-INSTALL:
-  1. Install yt-dlp:  pip install yt-dlp
-  2. Make executable: chmod +x native_host.py
-  3. Register the host (see README)
 """
 
 import sys
@@ -14,7 +9,6 @@ import json
 import struct
 import os
 import subprocess
-import threading
 import re
 
 
@@ -34,24 +28,101 @@ def send_message(obj):
 
 
 def check_exists(output_path, video_id):
-    """Check if a file with video_id already exists in output_path."""
+    """Check if a file with video_id already exists in output_path metadata comments."""
     if not os.path.isdir(output_path):
         return False
+
+    try:
+        from mutagen import File as MutagenFile
+    except Exception:
+        # fallback to filename heuristic when mutagen is unavailable
+        for f in os.listdir(output_path):
+            if f"[{video_id}]" in f or video_id in f:
+                return True
+        return False
+
+    target_url = f"https://www.youtube.com/watch?v={video_id}"
+
     for f in os.listdir(output_path):
-        if video_id in f:
-            return True
+        full = os.path.join(output_path, f)
+        if not os.path.isfile(full):
+            continue
+        try:
+            audio = MutagenFile(full)
+            if not audio or not audio.tags:
+                continue
+
+            comments = []
+            if hasattr(audio.tags, "getall"):
+                for frame in audio.tags.getall("COMM"):
+                    text = getattr(frame, "text", [])
+                    if isinstance(text, list):
+                        comments.extend([str(x) for x in text])
+                    elif text:
+                        comments.append(str(text))
+                for frame in audio.tags.getall("\xa9cmt"):
+                    text = getattr(frame, "text", [])
+                    if isinstance(text, list):
+                        comments.extend([str(x) for x in text])
+                    elif text:
+                        comments.append(str(text))
+
+            for key in ("comment", "comments", "\xa9cmt"):
+                if key in audio.tags:
+                    val = audio.tags.get(key)
+                    if isinstance(val, list):
+                        comments.extend([str(x) for x in val])
+                    else:
+                        comments.append(str(val))
+
+            if any(target_url in c or video_id in c for c in comments):
+                return True
+        except Exception:
+            continue
+
     return False
 
 
-def resolve_path(folder_name):
-    """
-    Given a folder name (e.g. 'Music'), find its absolute path.
-    Searches common locations in order.
-    Returns the path if found, otherwise returns a path inside the home dir.
-    """
-    home = os.path.expanduser("~")
+def write_source_comment(file_path, url, video_id):
+    """Write source URL into Description/Comments metadata."""
+    try:
+        from mutagen import File as MutagenFile
+        from mutagen.id3 import ID3, COMM, ID3NoHeaderError
+        from mutagen.mp4 import MP4
+    except Exception:
+        return False, "mutagen not installed"
 
-    # Exact match search in common locations
+    try:
+        audio = MutagenFile(file_path)
+        if audio is None:
+            return False, "unsupported audio format"
+
+        comment = url or f"https://www.youtube.com/watch?v={video_id}"
+
+        if isinstance(audio, MP4):
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags["\xa9cmt"] = [comment]
+            audio.save()
+            return True, None
+
+        # MP3 and other ID3 based files
+        try:
+            tags = ID3(file_path)
+        except ID3NoHeaderError:
+            tags = ID3()
+
+        tags.delall("COMM")
+        tags.add(COMM(encoding=3, lang="eng", desc="", text=comment))
+        tags.save(file_path)
+        return True, None
+
+    except Exception as e:
+        return False, str(e)
+
+
+def resolve_path(folder_name):
+    home = os.path.expanduser("~")
     search_roots = [
         home,
         os.path.join(home, "Music"),
@@ -62,12 +133,10 @@ def resolve_path(folder_name):
         "/mnt",
     ]
 
-    # 1. If folder_name is already an absolute path, return it directly
     if os.path.isabs(folder_name) and os.path.isdir(folder_name):
         send_message({"type": "resolved_path", "path": folder_name})
         return
 
-    # 2. Check if folder_name matches a known common folder directly
     well_known = {
         "music": os.path.join(home, "Music"),
         "downloads": os.path.join(home, "Downloads"),
@@ -80,16 +149,23 @@ def resolve_path(folder_name):
         send_message({"type": "resolved_path", "path": well_known[key]})
         return
 
-    # 3. Search one level deep in home and common roots
     for root in search_roots:
         candidate = os.path.join(root, folder_name)
         if os.path.isdir(candidate):
             send_message({"type": "resolved_path", "path": candidate})
             return
 
-    # 4. Fallback: return home/folder_name (will be created by yt-dlp if needed)
     fallback = os.path.join(home, folder_name)
     send_message({"type": "resolved_path", "path": fallback})
+
+
+def has_ffmpeg():
+    for candidate in ("ffmpeg", "ffprobe"):
+        try:
+            subprocess.run([candidate, "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            return False
+    return True
 
 
 def download(msg):
@@ -97,43 +173,34 @@ def download(msg):
     video_id = msg.get("videoId", "")
     title = msg.get("title", video_id)
     fmt = msg.get("format", "m4a")
-    out_path = msg.get("outputPath", os.path.expanduser("~"))
-    add_meta = msg.get("addMetadata", True)
+    out_path = os.path.expanduser(msg.get("outputPath", os.path.expanduser("~")))
 
-    # Expand ~ in case the path comes through unexpanded
-    out_path = os.path.expanduser(out_path)
     os.makedirs(out_path, exist_ok=True)
 
-    # Skip if exists
     if check_exists(out_path, video_id):
         send_message({"type": "skipped", "videoId": video_id})
         return
 
-    # Build yt-dlp command
-    output_template = os.path.join(out_path, f"%(title)s [{video_id}].%(ext)s")
+    output_template = os.path.join(out_path, "%(title)s.%(ext)s")
+    ffmpeg_ok = has_ffmpeg()
 
     cmd = [
         sys.executable,
         "-m",
         "yt_dlp",
         "--no-playlist",
-        "--extract-audio",
-        "--audio-format",
-        fmt,
-        "--audio-quality",
-        "0",
-        "--output",
-        output_template,
         "--newline",
         "--progress",
+        "--output",
+        output_template,
     ]
 
-    if add_meta:
-        cmd += [
-            "--add-metadata",
-            "--parse-metadata",
-            "webpage_url:%(comment)s",
-        ]
+    if fmt == "mp3" and ffmpeg_ok:
+        cmd += ["--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"]
+    elif fmt == "m4a":
+        cmd += ["--format", "bestaudio[ext=m4a]/bestaudio"]
+    else:
+        cmd += ["--format", "bestaudio"]
 
     cmd.append(url)
 
@@ -149,6 +216,7 @@ def download(msg):
         )
 
         last_lines = []
+        downloaded_file = None
 
         for line in proc.stdout:
             line = line.rstrip()
@@ -157,43 +225,54 @@ def download(msg):
                 if len(last_lines) > 12:
                     last_lines.pop(0)
 
-            m = re.search(
-                r"\[download\]\s+([\d.]+)%\s+of\s+([\d.]+\w+)\s+at\s+[\d.]+\w+/s\s+ETA\s+(\S+)",
-                line,
-            )
+            dest = re.search(r"\[download\]\s+Destination:\s+(.+)$", line)
+            if dest:
+                downloaded_file = dest.group(1).strip()
+
+            already = re.search(r"\[download\]\s+(.+)\s+has already been downloaded", line)
+            if already and not downloaded_file:
+                downloaded_file = already.group(1).strip()
+
+            m = re.search(r"\[download\]\s+([\d.]+)%\s+of\s+([\d.]+\w+)\s+at\s+[\d.]+\w+/s\s+ETA\s+(\S+)", line)
             if m:
-                send_message(
-                    {
-                        "type": "progress",
-                        "videoId": video_id,
-                        "percent": float(m.group(1)),
-                        "size": m.group(2),
-                        "eta": m.group(3),
-                    }
-                )
+                send_message({
+                    "type": "progress",
+                    "videoId": video_id,
+                    "percent": float(m.group(1)),
+                    "size": m.group(2),
+                    "eta": m.group(3),
+                })
 
         proc.wait()
 
-        if proc.returncode == 0:
-            send_message({"type": "done", "videoId": video_id})
-        else:
+        if proc.returncode != 0:
             detail = last_lines[-1] if last_lines else ""
-            send_message(
-                {
-                    "type": "error",
-                    "videoId": video_id,
-                    "error": f"yt-dlp exited with code {proc.returncode}: {detail}".strip(),
-                }
-            )
-
-    except FileNotFoundError:
-        send_message(
-            {
+            send_message({
                 "type": "error",
                 "videoId": video_id,
-                "error": "yt-dlp not found. Install it with: pip install yt-dlp",
-            }
-        )
+                "error": f"yt-dlp exited with code {proc.returncode}: {detail}".strip(),
+            })
+            return
+
+        meta_warn = None
+        if downloaded_file and os.path.isfile(downloaded_file):
+            ok, err = write_source_comment(downloaded_file, url, video_id)
+            if not ok:
+                meta_warn = err
+
+        payload = {"type": "done", "videoId": video_id}
+        if meta_warn:
+            payload["warning"] = f"Downloaded, but comment metadata could not be written ({meta_warn})."
+        if fmt == "mp3" and not ffmpeg_ok:
+            payload["warning"] = "Downloaded without conversion: install ffmpeg to export true MP3."
+        send_message(payload)
+
+    except FileNotFoundError:
+        send_message({
+            "type": "error",
+            "videoId": video_id,
+            "error": "yt-dlp not found. Install it with: pip install yt-dlp",
+        })
     except Exception as e:
         send_message({"type": "error", "videoId": video_id, "error": str(e)})
 
@@ -208,10 +287,6 @@ def main():
         if action == "download":
             download(msg)
         elif action == "resolve_path":
-            resolve_path(msg.get("folderName", ""))
-
-        elif action == "resolve_path":
-            # Synchronous — fast, no thread needed
             resolve_path(msg.get("folderName", ""))
 
 

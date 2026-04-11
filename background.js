@@ -7,6 +7,7 @@ let undoStack = [];
 let downloadQueue = [];
 let isDownloading = false;
 let currentIndex = 0;
+let currentTitle = '';
 
 // ── OPEN UI ──────────────────────────────────────────────────────
 // All entry points use the SAME dimensions (360×640).
@@ -214,7 +215,8 @@ function handleNativeMessage(msg) {
       p.resolve({
         success: msg.type === 'done',
         skipped: msg.type === 'skipped',
-        error:   msg.error || null
+        error:   msg.error || null,
+        warning: msg.warning || null
       });
       pendingDownloads.delete(msg.videoId);
     }
@@ -281,6 +283,8 @@ async function processQueue() {
       title:   item.title
     }).catch(() => {});
 
+    currentTitle = item.title || '';
+
     const result = await downloadTrackNative(item);
 
     chrome.runtime.sendMessage({
@@ -298,7 +302,18 @@ async function processQueue() {
   // reset
   downloadQueue = [];
   currentIndex  = 0;
+  currentTitle  = '';
   isDownloading = false;
+}
+
+
+function getQueueState() {
+  return {
+    isDownloading,
+    current: isDownloading ? currentIndex + 1 : 0,
+    total: downloadQueue.length,
+    title: currentTitle
+  };
 }
 
 // ── GET TOTAL UNIQUE SONGS ────────────────────────────────────────
@@ -360,6 +375,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === 'GET_TOTAL') {
     getTotalUnique(msg.folderId).then(total => sendResponse({ total }));
+    return true;
+  }
+  if (msg.type === 'GET_QUEUE_STATE') {
+    sendResponse(getQueueState());
     return true;
   }
 });
