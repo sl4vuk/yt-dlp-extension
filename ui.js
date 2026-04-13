@@ -347,9 +347,9 @@ function initResizableSidebar() {
   if (!splitter) return;
   let active = false;
   const COMPACT_BREAKPOINT = 980;
-  const MIN_SIDEBAR_WIDTH = 300;
+  const MIN_SIDEBAR_WIDTH = 360;
   const MAX_SIDEBAR_WIDTH = 560;
-  const MIN_TERMINAL_WIDTH = 320;
+  const MIN_TERMINAL_WIDTH = 420;
 
   function getSafeSidebarMaxWidth() {
     const splitterWidth = splitter.getBoundingClientRect().width || 6;
