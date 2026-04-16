@@ -41,12 +41,11 @@ const statAgeRestricted = $('stat-ageRestricted');
 const statUnavailable = $('stat-unavailable');
 const statCopyright = $('stat-copyright');
 const statTerminated = $('stat-terminated');
-const dashboardModal = $('dashboard-modal');
-const dashboardModalTitle = $('dashboard-modal-title');
-const dashboardModalSubtitle = $('dashboard-modal-subtitle');
-const dashboardModalActions = $('dashboard-modal-actions');
-const dashboardModalBody = $('dashboard-modal-body');
-const dashboardModalClose = $('dashboard-modal-close');
+const terminalFilterActions = $('terminal-filter-actions');
+const terminalRetryAll = $('terminal-retry-all');
+const terminalLogin = $('terminal-login');
+const terminalFilterLabel = $('terminal-filter-label');
+const terminalFilterList = $('terminal-filter-list');
 
 // Sections affected by settings
 const syncSection = $('sync-section');
@@ -631,24 +630,27 @@ async function loadDashboardState() {
   if (!res || res.error) return;
   downloadDashboardState = normalizeDashboardState(res);
   renderDashboardStats();
-  if (document.body.classList.contains('tab-mode') && !dashboardModal.hidden && currentDashboardBucket) {
-    if (currentDashboardBucket === 'ageRestricted') openAgeRestrictedDialog();
-    else openIssueDialog(currentDashboardBucket);
-  }
+  if (currentDashboardBucket) renderTerminalFilter(currentDashboardBucket);
 }
 
-function closeDashboardModal() {
-  dashboardModal.hidden = true;
-  dashboardModalActions.innerHTML = '';
-  dashboardModalBody.innerHTML = '';
+function clearTerminalFilter() {
   currentDashboardBucket = null;
+  terminalFilterActions.hidden = true;
+  terminalFilterLabel.hidden = true;
+  terminalFilterList.hidden = true;
+  terminalFilterLabel.textContent = '';
+  terminalFilterList.innerHTML = '';
+  tabStatCards.forEach(card => card.classList.remove('active'));
 }
 
-function openDashboardModal(title, subtitle) {
-  if (!document.body.classList.contains('tab-mode')) return;
-  dashboardModal.hidden = false;
-  dashboardModalTitle.textContent = title;
-  dashboardModalSubtitle.textContent = subtitle;
+function getFilterTitle(bucket) {
+  const map = {
+    unavailable: 'Unavailable',
+    ageRestricted: 'Age restricted',
+    copyright: 'Copyright claim',
+    terminated: 'Channel terminated',
+  };
+  return map[bucket] || bucket;
 }
 
 function getIssuesForBucket(bucket) {
@@ -659,34 +661,34 @@ async function persistIssueState(nextIssues) {
   downloadDashboardState.issues = nextIssues;
   await store.set({ downloadIssuesJson: JSON.stringify(nextIssues) });
   renderDashboardStats();
+  if (currentDashboardBucket) renderTerminalFilter(currentDashboardBucket);
 }
 
-function renderIssueList(bucket) {
+function renderTerminalFilter(bucket) {
+  currentDashboardBucket = bucket;
   const issues = getIssuesForBucket(bucket);
+  tabStatCards.forEach(card => card.classList.toggle('active', card.dataset.statAction === bucket));
+  terminalFilterActions.hidden = false;
+  terminalFilterLabel.hidden = false;
+  terminalFilterList.hidden = false;
+  terminalLogin.hidden = bucket !== 'ageRestricted';
+  terminalFilterLabel.textContent = `${getFilterTitle(bucket)} · ${issues.length}`;
+
   if (!issues.length) {
-    dashboardModalBody.innerHTML = '<div class="modal-copy">No items in this category right now.</div>';
+    terminalFilterList.innerHTML = '<div class="terminal-filter-item"><div class="terminal-filter-url">No items in this category right now.</div></div>';
     return;
   }
 
-  dashboardModalBody.innerHTML = `
-    <div class="issue-list">
-      ${issues.map((issue, index) => `
-        <div class="issue-item" data-issue-index="${index}">
-          <div class="issue-item-main">
-            <div class="issue-title">${esc(issue.title || 'Unknown title')}</div>
-            <div class="issue-url">${esc(issue.url || 'No URL stored')}</div>
-            <div class="issue-replace-row">
-              <input class="issue-replace-input" data-replace-input="${index}" placeholder="Paste replacement YouTube URL" value="${esc(issue.url || '')}" />
-              <button class="mini-btn" data-replace-download="${index}">Use URL</button>
-            </div>
-          </div>
-          <div class="issue-actions">
-            <button class="mini-btn" data-open-search="${index}">Open search</button>
-          </div>
-        </div>
-      `).join('')}
+  terminalFilterList.innerHTML = issues.map((issue, index) => `
+    <div class="terminal-filter-item" data-issue-index="${index}">
+      <button class="terminal-filter-title" data-open-search="${index}">${esc(issue.title || 'Unknown title')}</button>
+      <div class="terminal-filter-url">${esc(issue.url || 'No URL stored')}</div>
+      <div class="terminal-filter-row">
+        <input class="terminal-filter-input" data-replace-input="${index}" value="${esc(issue.url || '')}" placeholder="Paste replacement YouTube URL" />
+        <button class="terminal-inline-btn" data-replace-download="${index}">Use URL</button>
+      </div>
     </div>
-  `;
+  `).join('');
 }
 
 function buildIssueRetryQueue(bucket, outputPath, format, cookieMode) {
@@ -709,8 +711,11 @@ async function startIssueRetry(bucket) {
     toast('Set the output folder path first');
     return;
   }
-  const saved = await store.get(['downloadCookieMode']);
-  const queue = buildIssueRetryQueue(bucket, outputPath, selectedFormat, saved.downloadCookieMode || 'off');
+  const saved = await store.get(['downloadCookieMode', 'oauthCookiesText']);
+  const queue = buildIssueRetryQueue(bucket, outputPath, selectedFormat, saved.downloadCookieMode || 'off').map(item => ({
+    ...item,
+    cookieText: saved.oauthCookiesText || '',
+  }));
   if (!queue.length) {
     toast('Nothing to retry');
     return;
@@ -721,38 +726,8 @@ async function startIssueRetry(bucket) {
     return;
   }
   applyDownloadButtonState(true);
-  closeDashboardModal();
+  renderTerminalFilter(bucket);
   toast(`Retrying ${queue.length} item${queue.length === 1 ? '' : 's'}`);
-}
-
-function openAgeRestrictedDialog() {
-  currentDashboardBucket = 'ageRestricted';
-  openDashboardModal('Age restricted', 'Use browser cookies for restricted videos.');
-  dashboardModalActions.innerHTML = `
-    <div class="cookie-choice-grid">
-      <button class="mini-btn" data-cookie-choice="browser">Use current browser cookies</button>
-      <button class="mini-btn" data-cookie-choice="signin">Sign in with Google / YouTube</button>
-      <button class="mini-btn" data-cookie-choice="off">Disable cookies</button>
-    </div>
-  `;
-  dashboardModalBody.innerHTML = `
-    <div class="modal-copy">
-      <p>This extension can realistically reuse the signed-in Chrome profile via <strong>yt-dlp --cookies-from-browser chrome</strong>.</p>
-      <p><strong>Sign in</strong> opens YouTube/Google in a browser tab. <strong>Use current browser cookies</strong> enables cookie-based downloads immediately.</p>
-    </div>
-  `;
-}
-
-function openIssueDialog(bucket) {
-  const labels = {
-    unavailable: 'Unavailable',
-    copyright: 'Copyright claim',
-    terminated: 'Channel terminated',
-  };
-  currentDashboardBucket = bucket;
-  openDashboardModal(labels[bucket], 'Retry with yt-dlp search or replace URLs manually.');
-  dashboardModalActions.innerHTML = `<button class="mini-btn" data-retry-bucket="${bucket}">Retry all</button>`;
-  renderIssueList(bucket);
 }
 
 async function openDownloadedFolder() {
@@ -776,51 +751,21 @@ tabStatCards.forEach(card => {
       openDownloadedFolder();
       return;
     }
-    if (action === 'ageRestricted') {
-      openAgeRestrictedDialog();
-      return;
-    }
-    if (action === 'unavailable' || action === 'copyright' || action === 'terminated') {
-      openIssueDialog(action);
-    }
+    renderTerminalFilter(action);
   });
 });
 
-dashboardModalClose.addEventListener('click', closeDashboardModal);
-dashboardModal.addEventListener('click', event => {
-  if (event.target === dashboardModal) closeDashboardModal();
+terminalRetryAll.addEventListener('click', async () => {
+  if (!currentDashboardBucket) return;
+  startIssueRetry(currentDashboardBucket);
 });
 
-window.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && !dashboardModal.hidden) {
-    closeDashboardModal();
-  }
+terminalLogin.addEventListener('click', async () => {
+  await store.set({ downloadCookieMode: 'browser' });
+  chrome.tabs.create({ url: chrome.runtime.getURL('settings.html#oauth-card') });
 });
 
-dashboardModalActions.addEventListener('click', async event => {
-  const retryBucket = event.target.closest('[data-retry-bucket]')?.dataset.retryBucket;
-  if (retryBucket) {
-    startIssueRetry(retryBucket);
-    return;
-  }
-
-  const cookieChoice = event.target.closest('[data-cookie-choice]')?.dataset.cookieChoice;
-  if (!cookieChoice) return;
-
-  if (cookieChoice === 'signin') {
-    await store.set({ downloadCookieMode: 'browser' });
-    chrome.tabs.create({ url: 'https://accounts.google.com/ServiceLogin?service=youtube' });
-    toast('Sign in in the opened tab, then retry the download.');
-    closeDashboardModal();
-    return;
-  }
-
-  await store.set({ downloadCookieMode: cookieChoice === 'browser' ? 'browser' : 'off' });
-  toast(cookieChoice === 'browser' ? 'Browser cookies enabled for downloads' : 'Cookie usage disabled');
-  closeDashboardModal();
-});
-
-dashboardModalBody.addEventListener('click', async event => {
+terminalFilterList.addEventListener('click', async event => {
   const searchIndex = event.target.closest('[data-open-search]')?.dataset.openSearch;
   if (searchIndex != null && currentDashboardBucket) {
     const issue = getIssuesForBucket(currentDashboardBucket)[Number(searchIndex)];
@@ -833,7 +778,7 @@ dashboardModalBody.addEventListener('click', async event => {
   if (replaceIndex == null || !currentDashboardBucket) return;
 
   const issue = getIssuesForBucket(currentDashboardBucket)[Number(replaceIndex)];
-  const input = dashboardModalBody.querySelector(`[data-replace-input="${replaceIndex}"]`);
+  const input = terminalFilterList.querySelector(`[data-replace-input="${replaceIndex}"]`);
   const replacementUrl = input?.value?.trim() || '';
   const videoId = extractVideoId(replacementUrl);
   if (!videoId) {
@@ -847,7 +792,7 @@ dashboardModalBody.addEventListener('click', async event => {
     return;
   }
 
-  const saved = await store.get(['downloadCookieMode']);
+  const saved = await store.get(['downloadCookieMode', 'oauthCookiesText']);
   const nextIssues = { ...downloadDashboardState.issues };
   nextIssues[currentDashboardBucket] = nextIssues[currentDashboardBucket].map((entry, index) => index === Number(replaceIndex) ? { ...entry, url: replacementUrl, videoId } : entry);
   await persistIssueState(nextIssues);
@@ -860,6 +805,7 @@ dashboardModalBody.addEventListener('click', async event => {
     format: selectedFormat,
     outputPath,
     cookieMode: saved.downloadCookieMode || 'off',
+    cookieText: saved.oauthCookiesText || '',
     sourceMode: 'issue-manual-replace',
     issueBucket: currentDashboardBucket,
   }];
@@ -869,7 +815,7 @@ dashboardModalBody.addEventListener('click', async event => {
     return;
   }
 
-  closeDashboardModal();
+  renderTerminalFilter(currentDashboardBucket);
   applyDownloadButtonState(true);
   toast('Replacement download started');
 });
@@ -890,8 +836,9 @@ btnDownload.addEventListener('click', async () => {
     return;
   }
 
-  const saved = await store.get(['downloadCookieMode']);
+  const saved = await store.get(['downloadCookieMode', 'oauthCookiesText']);
   const cookieMode = saved.downloadCookieMode || 'off';
+  const cookieText = saved.oauthCookiesText || '';
 
   if (currentMode === 'bookmarks') {
     const fid = folderSel.value;
@@ -918,6 +865,7 @@ btnDownload.addEventListener('click', async () => {
             format: selectedFormat,
             outputPath,
             cookieMode,
+            cookieText,
             sourceMode: 'bookmarks',
           });
         } catch {}
@@ -945,6 +893,7 @@ btnDownload.addEventListener('click', async () => {
         format: selectedFormat,
         outputPath,
         cookieMode,
+        cookieText,
         sourceMode: currentMode,
       });
     });

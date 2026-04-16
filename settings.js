@@ -19,11 +19,18 @@ const defFolderSel = $('set-default-folder');
 const autoSyncToggle = $('set-auto-sync');
 const showExportToggle = $('set-show-export');
 const themeSelect = $('set-theme');
-const interfaceLanguageSelect = $('set-interface-language');
+const interfaceLanguageTrigger = $('set-interface-language-trigger');
+const interfaceLanguageValue = $('set-interface-language-value');
+const interfaceLanguagePanel = $('set-interface-language-panel');
 const interfaceLanguageSearch = $('set-interface-language-search');
+const interfaceLanguageOptions = $('set-interface-language-options');
 const downloadPathInput = $('set-download-path');
 const browsePathBtn = $('set-browse-path');
 const panelModeSelect = $('set-panel-mode');
+const oauthGoogleBtn = $('oauth-google-btn');
+const oauthAnonymousBtn = $('oauth-anonymous-btn');
+const oauthCookiesText = $('oauth-cookies-text');
+const oauthStatus = $('oauth-status');
 
 // Import/Export
 const importDropZone = $('import-drop-zone');
@@ -33,20 +40,38 @@ const exportSettingsBtn = $('export-settings-btn');
 const resetSettingsBtn = $('reset-settings-btn');
 
 let toastTimer;
+let currentInterfaceLanguage = 'en';
 
 function buildLanguageOptions(filter = '') {
-  if (!interfaceLanguageSelect || !window.ExtensionI18n) return;
-  const selected = interfaceLanguageSelect.value || 'en';
+  if (!interfaceLanguageOptions || !window.ExtensionI18n) return;
   const query = filter.trim().toLowerCase();
   const languages = window.ExtensionI18n.getLanguageOptions().filter(item => {
     return !query || item.name.toLowerCase().includes(query) || item.code.toLowerCase().includes(query);
   });
 
-  interfaceLanguageSelect.innerHTML = languages.map(item => (
-    `<option value="${item.code}">${item.name}</option>`
+  interfaceLanguageOptions.innerHTML = languages.map(item => (
+    `<button type="button" class="language-option${item.code === currentInterfaceLanguage ? ' active' : ''}" data-language-code="${item.code}">${item.name}</button>`
   )).join('');
+  const current = window.ExtensionI18n.getLanguageOptions().find(item => item.code === currentInterfaceLanguage);
+  if (interfaceLanguageValue) interfaceLanguageValue.textContent = current?.name || 'English';
+}
 
-  interfaceLanguageSelect.value = languages.some(item => item.code === selected) ? selected : (languages[0]?.code || 'en');
+function setOAuthStatus(text) {
+  if (oauthStatus) oauthStatus.textContent = text;
+}
+
+function openLanguagePanel() {
+  if (!interfaceLanguagePanel) return;
+  interfaceLanguagePanel.hidden = false;
+  if (interfaceLanguageSearch) {
+    interfaceLanguageSearch.value = '';
+    buildLanguageOptions();
+    setTimeout(() => interfaceLanguageSearch.focus(), 0);
+  }
+}
+
+function closeLanguagePanel() {
+  if (interfaceLanguagePanel) interfaceLanguagePanel.hidden = true;
 }
 
 function toast(msg) {
@@ -123,6 +148,7 @@ const DEFAULTS = {
   downloadMode: 'bookmarks',
   clipboardUrls: '[]',
   downloadCookieMode: 'off',
+  oauthCookiesText: '',
 };
 
 // ── LOAD SETTINGS ───────────────────────────────────────────────
@@ -150,13 +176,14 @@ async function loadSettings() {
   if (themeSelect) themeSelect.value = themeVal;
   applyTheme(themeVal);
 
-  if (interfaceLanguageSelect) {
-    buildLanguageOptions();
-    interfaceLanguageSelect.value = saved.interfaceLanguage || 'en';
-  }
+  currentInterfaceLanguage = saved.interfaceLanguage || 'en';
+  buildLanguageOptions();
+
+  if (oauthCookiesText) oauthCookiesText.value = saved.oauthCookiesText || '';
+  setOAuthStatus(saved.oauthCookiesText ? 'Cookies available for restricted downloads.' : 'No cookies captured yet.');
 
   if (window.ExtensionI18n) {
-    await window.ExtensionI18n.applyPageTranslations(document, saved.interfaceLanguage || 'en');
+    await window.ExtensionI18n.applyPageTranslations(document, currentInterfaceLanguage);
   }
 }
 
@@ -181,21 +208,35 @@ function initBindings() {
     });
   }
 
-  if (interfaceLanguageSelect) {
-    interfaceLanguageSelect.addEventListener('change', async () => {
-      await window.ExtensionI18n.setLanguage(interfaceLanguageSelect.value);
-      await window.ExtensionI18n.applyPageTranslations(document, interfaceLanguageSelect.value);
-      toast('✓ Saved');
+  if (interfaceLanguageTrigger) {
+    interfaceLanguageTrigger.addEventListener('click', () => {
+      if (interfaceLanguagePanel?.hidden) openLanguagePanel();
+      else closeLanguagePanel();
     });
   }
 
   if (interfaceLanguageSearch) {
     interfaceLanguageSearch.addEventListener('input', () => {
-      const current = interfaceLanguageSelect.value || 'en';
       buildLanguageOptions(interfaceLanguageSearch.value);
-      if (current) interfaceLanguageSelect.value = current;
     });
   }
+
+  interfaceLanguageOptions?.addEventListener('click', async event => {
+    const option = event.target.closest('[data-language-code]');
+    if (!option) return;
+    currentInterfaceLanguage = option.dataset.languageCode;
+    await window.ExtensionI18n.setLanguage(currentInterfaceLanguage);
+    buildLanguageOptions(interfaceLanguageSearch?.value || '');
+    closeLanguagePanel();
+    await window.ExtensionI18n.applyPageTranslations(document, currentInterfaceLanguage);
+    toast('✓ Saved');
+  });
+
+  document.addEventListener('click', event => {
+    if (!interfaceLanguagePanel || interfaceLanguagePanel.hidden) return;
+    if (event.target.closest('#language-combobox')) return;
+    closeLanguagePanel();
+  });
 
   // Download path with debounce
   let pathTimer;
@@ -231,6 +272,32 @@ function initBindings() {
       }
     } catch {}
   });
+
+  oauthGoogleBtn?.addEventListener('click', async () => {
+    await store.set({ downloadCookieMode: 'browser' });
+    chrome.tabs.create({ url: 'https://accounts.google.com/ServiceLogin?service=youtube' });
+    setOAuthStatus('Google sign-in opened. After signing in, browser cookies will be used for age-restricted downloads.');
+    toast('Opened Google sign-in');
+  });
+
+  oauthAnonymousBtn?.addEventListener('click', async () => {
+    const res = await sendRuntimeMessage({ type: 'CAPTURE_YOUTUBE_COOKIES' });
+    if (res?.ok === false) {
+      setOAuthStatus(res.error || 'Could not capture cookies. Open a YouTube tab first.');
+      toast(res?.error || 'Could not capture cookies');
+      return;
+    }
+    if (oauthCookiesText) oauthCookiesText.value = res.cookieText || '';
+    await store.set({ oauthCookiesText: oauthCookiesText?.value || '', downloadCookieMode: 'manual' });
+    setOAuthStatus('YouTube cookies captured from the active tab and saved for restricted downloads.');
+    toast('Cookies captured');
+  });
+
+  oauthCookiesText?.addEventListener('input', () => {
+    const value = oauthCookiesText.value.trim();
+    store.set({ oauthCookiesText: value, downloadCookieMode: value ? 'manual' : 'off' });
+    setOAuthStatus(value ? 'Manual cookies saved for restricted downloads.' : 'No cookies captured yet.');
+  });
 }
 
 // ── LISTEN FOR EXTERNAL STORAGE CHANGES (real-time sync) ────────
@@ -240,8 +307,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
     applyTheme(changes.theme.newValue);
     if (themeSelect) themeSelect.value = changes.theme.newValue || 'system';
   }
-  if (changes.interfaceLanguage && interfaceLanguageSelect)
-    interfaceLanguageSelect.value = changes.interfaceLanguage.newValue || 'en';
+  if (changes.interfaceLanguage) {
+    currentInterfaceLanguage = changes.interfaceLanguage.newValue || 'en';
+    buildLanguageOptions(interfaceLanguageSearch?.value || '');
+  }
   if (changes.interfaceLanguage && window.ExtensionI18n)
     window.ExtensionI18n.applyPageTranslations(document, changes.interfaceLanguage.newValue || 'en');
   if (changes.panelMode && panelModeSelect) panelModeSelect.value = changes.panelMode.newValue;
@@ -253,6 +322,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
     showExportToggle.checked = changes.showExport.newValue === true;
   if (changes.defaultFolder && defFolderSel)
     defFolderSel.value = changes.defaultFolder.newValue || '';
+  if (changes.oauthCookiesText && oauthCookiesText && document.activeElement !== oauthCookiesText) {
+    oauthCookiesText.value = changes.oauthCookiesText.newValue || '';
+    setOAuthStatus(oauthCookiesText.value.trim() ? 'Manual cookies saved for restricted downloads.' : 'No cookies captured yet.');
+  }
 });
 
 function openExtensionShortcutsPage() {

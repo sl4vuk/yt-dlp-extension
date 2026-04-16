@@ -12,6 +12,7 @@ import subprocess
 import re
 import glob
 import webbrowser
+import tempfile
 
 
 ACTIVE_PROC = None
@@ -211,6 +212,7 @@ def download(msg):
     fmt = msg.get("format", "fast")
     out_path = os.path.expanduser(msg.get("outputPath", os.path.expanduser("~")))
     cookie_mode = msg.get("cookieMode", "off")
+    cookie_text = msg.get("cookieText", "")
 
     os.makedirs(out_path, exist_ok=True)
 
@@ -239,8 +241,15 @@ def download(msg):
     else:
         cmd += ["--format", "bestaudio/best"]
 
+    cookie_file = None
     if cookie_mode == "browser":
         cmd += ["--cookies-from-browser", "chrome"]
+    elif cookie_mode == "manual" and cookie_text.strip():
+        temp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8")
+        temp.write(cookie_text)
+        temp.close()
+        cookie_file = temp.name
+        cmd += ["--cookies", cookie_file]
 
     cmd.append(url)
 
@@ -327,6 +336,11 @@ def download(msg):
         cleanup_partial_files(out_path, video_id)
         send_message({"type": "error", "videoId": video_id, "error": str(e)})
     finally:
+        if cookie_file:
+            try:
+                os.remove(cookie_file)
+            except Exception:
+                pass
         ACTIVE_PROC = None
         ACTIVE_VIDEO_ID = None
         ACTIVE_OUTPUT_PATH = None

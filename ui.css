@@ -86,6 +86,9 @@ body.tab-mode .terminal-panel { flex: 1; min-width: 420px; min-height: 0; }
   background: #2a2a2a;
   transform: translateY(-1px);
 }
+.tab-stat-card.active {
+  background: #2a2a2a;
+}
 .tab-stat-card:focus,
 .tab-stat-card:active {
   background: #2a2a2a;

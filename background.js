@@ -283,7 +283,7 @@ async function handleQuickDownload() {
   }
 
   const data = await new Promise(r =>
-    chrome.storage.local.get(['downloadPath', 'format', 'downloadCookieMode'], r)
+    chrome.storage.local.get(['downloadPath', 'format', 'downloadCookieMode', 'oauthCookiesText'], r)
   );
 
   const outputPath = data.downloadPath || '';
@@ -308,7 +308,7 @@ async function handleQuickDownload() {
     title
   }).catch(() => {});
 
-  const result = await downloadTrackNative({ url, videoId: vid, title, format: fmt, outputPath, cookieMode: data.downloadCookieMode || 'off' });
+  const result = await downloadTrackNative({ url, videoId: vid, title, format: fmt, outputPath, cookieMode: data.downloadCookieMode || 'off', cookieText: data.oauthCookiesText || '' });
 
   updateStatsFromResult(result, { url, sourceUrl: url, videoId: vid, title, sourceMode: 'quick-download' });
 
@@ -472,7 +472,7 @@ function handleNativeMessage(msg) {
   }
 }
 
-function downloadTrackNative({ url, videoId, title, format, outputPath, cookieMode = 'off' }) {
+function downloadTrackNative({ url, videoId, title, format, outputPath, cookieMode = 'off', cookieText = '' }) {
   return new Promise(resolve => {
     const port = getNativePort();
     if (!port) {
@@ -480,7 +480,7 @@ function downloadTrackNative({ url, videoId, title, format, outputPath, cookieMo
       return;
     }
     pendingDownloads.set(videoId, { resolve });
-    port.postMessage({ action: 'download', url, videoId, title, format, outputPath, cookieMode, addMetadata: true });
+    port.postMessage({ action: 'download', url, videoId, title, format, outputPath, cookieMode, cookieText, addMetadata: true });
     setTimeout(() => {
       if (pendingDownloads.has(videoId)) {
         pendingDownloads.delete(videoId);
@@ -522,6 +522,41 @@ function openFolderNative(folderPath) {
       }
     }, 5000);
   });
+}
+
+async function captureYoutubeCookies() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeTab = tabs?.[0];
+  const tabUrl = activeTab?.url || '';
+  if (!tabUrl.startsWith('https://www.youtube.com/') && !tabUrl.startsWith('https://music.youtube.com/')) {
+    return { ok: false, error: 'Open a YouTube or YouTube Music tab first.' };
+  }
+
+  const urls = ['https://www.youtube.com', 'https://music.youtube.com'];
+  const allCookies = [];
+  for (const url of urls) {
+    const cookies = await chrome.cookies.getAll({ url });
+    allCookies.push(...cookies);
+  }
+
+  if (!allCookies.length) {
+    return { ok: false, error: 'No YouTube cookies were found in the current browser profile.' };
+  }
+
+  const unique = new Map();
+  allCookies.forEach(cookie => unique.set(`${cookie.domain}|${cookie.path}|${cookie.name}`, cookie));
+
+  const now = Math.floor(Date.now() / 1000);
+  const lines = ['# Netscape HTTP Cookie File'];
+  unique.forEach(cookie => {
+    const domain = cookie.domain.startsWith('.') ? cookie.domain : `.${cookie.domain}`;
+    const includeSubdomains = domain.startsWith('.') ? 'TRUE' : 'FALSE';
+    const secure = cookie.secure ? 'TRUE' : 'FALSE';
+    const expires = cookie.session ? String(now + 86400) : String(cookie.expirationDate ? Math.floor(cookie.expirationDate) : now + 86400);
+    lines.push([domain, includeSubdomains, cookie.path || '/', secure, expires, cookie.name, cookie.value].join('\t'));
+  });
+
+  return { ok: true, cookieText: lines.join('\n') };
 }
 
 // ── BACKGROUND DOWNLOAD QUEUE ─────────────────────────────────────
@@ -631,6 +666,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       format:     msg.format,
       outputPath: msg.outputPath,
       cookieMode: msg.cookieMode,
+      cookieText: msg.cookieText,
     }).then(reply).catch(replyError);
     return true;
   }
@@ -640,6 +676,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === 'OPEN_DOWNLOAD_FOLDER') {
     openFolderNative(msg.folderPath).then(reply).catch(replyError);
+    return true;
+  }
+  if (msg.type === 'CAPTURE_YOUTUBE_COOKIES') {
+    captureYoutubeCookies().then(reply).catch(replyError);
     return true;
   }
 
