@@ -14,16 +14,16 @@
       <div class="header">
         <div class="logo">
           <div class="logo-dot"></div>
-          <span class="logo-text">YT Bookmark Cleaner</span>
+          <span class="logo-text" data-i18n-mode="text">YT Bookmark Cleaner</span>
         </div>
         <div class="header-actions">
-          <button class="ib" id="btn-window" title="Pop out window">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
-          </button>
-          <button class="ib" id="btn-tab" title="Open in tab">
+          <button class="ib" id="btn-tab" title="Open in tab" data-i18n-mode="title">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/></svg>
           </button>
-          <button class="ib" id="btn-theme" title="Toggle theme">
+          <button class="ib" id="btn-settings" title="Settings" data-i18n-mode="title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="ib" id="btn-theme" title="Toggle theme" data-i18n-mode="title">
             <svg id="icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             <svg id="icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           </button>
@@ -32,67 +32,94 @@
 
       <div class="total-block">
         <span class="total-num" id="total-num">—</span>
-        <span class="total-lbl">Total songs</span>
-      </div>
-
-      <div class="download-stats" id="download-stats">
-        <div class="stat">
-          <div class="stat-val acc" id="c-downloaded">0</div>
-          <div class="stat-lbl">Downloaded</div>
-        </div>
-        <div class="stat">
-          <div class="stat-val err" id="c-age">0</div>
-          <div class="stat-lbl">Age restricted</div>
-        </div>
-        <div class="stat">
-          <div class="stat-val err" id="c-unavailable">0</div>
-          <div class="stat-lbl">Unavailable</div>
-        </div>
-        <div class="stat">
-          <div class="stat-val err" id="c-copyright">0</div>
-          <div class="stat-lbl">Copyright claim</div>
-        </div>
-        <div class="stat">
-          <div class="stat-val err" id="c-terminated">0</div>
-          <div class="stat-lbl">Channel terminated</div>
-        </div>
+        <span class="total-lbl" data-i18n-mode="text">Total songs</span>
       </div>
 
       <div class="sync-stats" id="sync-stats">
-        <div class="stat">
+        <div class="stat stat-compact">
           <div class="stat-val" id="s-scanned">0</div>
-          <div class="stat-lbl">Scanned</div>
+          <div class="stat-lbl" data-i18n-mode="text">Scanned</div>
         </div>
-        <div class="stat">
+        <div class="stat stat-compact">
           <div class="stat-val acc" id="s-synced">0</div>
-          <div class="stat-lbl">Synced</div>
+          <div class="stat-lbl" data-i18n-mode="text">Synced</div>
         </div>
-        <div class="stat">
+        <div class="stat stat-compact">
           <div class="stat-val" id="s-skipped">0</div>
-          <div class="stat-lbl">Skipped</div>
+          <div class="stat-lbl" data-i18n-mode="text">Skipped</div>
         </div>
       </div>
 
-      <div>
-        <div class="field-label">Bookmark folder</div>
+      <!-- MODE SWITCHER -->
+      <div class="mode-switcher">
+        <button class="mode-btn active" data-mode="bookmarks">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <span data-i18n-mode="text">Bookmarks</span>
+        </button>
+        <button class="mode-btn" data-mode="files">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span data-i18n-mode="text">Files</span>
+        </button>
+        <button class="mode-btn" data-mode="clipboard">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+          <span data-i18n-mode="text">Clipboard</span>
+        </button>
+      </div>
+
+      <!-- BOOKMARKS MODE (default) -->
+      <div class="mode-panel active" id="mode-bookmarks">
+        <div class="field-label" data-i18n-mode="text">Bookmark folder</div>
         <select id="folderSelect"></select>
       </div>
 
-      <div class="divider"></div>
-
-      <div>
-        <div class="st">Sync &amp; Clean</div>
-        <div class="btn-row">
-          <button class="btn acc" id="btn-sync">Sync YT↔Music</button>
-          <button class="btn" id="btn-undo">Undo</button>
+      <!-- FILES MODE -->
+      <div class="mode-panel" id="mode-files">
+        <div class="field-label" data-i18n-mode="text">URL file</div>
+        <div class="file-drop-zone" id="file-drop-zone">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="file-drop-text" data-i18n-mode="text">Drag & drop a file with URLs, or</span>
+          <button class="file-browse-btn" id="file-browse-btn" data-i18n-mode="text">Browse File</button>
+          <input type="file" id="file-input" accept=".txt,.csv,.json,.urls" style="display:none"/>
+        </div>
+        <div class="file-loaded-info" id="file-loaded-info" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span id="file-name-display">file.txt</span>
+          <span class="file-url-count" id="file-url-count">0 URLs</span>
+          <button class="ib file-remove-btn" id="file-remove-btn" title="Remove file" data-i18n-mode="title">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       </div>
 
-      <div class="divider"></div>
+      <!-- CLIPBOARD MODE -->
+      <div class="mode-panel" id="mode-clipboard">
+        <div class="field-label" data-i18n-mode="text">Clipboard URLs</div>
+        <div class="clipboard-header" id="clipboard-header">
+          <div class="clipboard-count-row" id="clipboard-toggle">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+            <span id="clipboard-count">0 URLs copied</span>
+            <svg class="clipboard-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+        <div class="clipboard-list-wrap" id="clipboard-list-wrap" style="display:none">
+          <div class="clipboard-list" id="clipboard-list"></div>
+        </div>
+      </div>
 
-      <div>
+      <div class="divider" id="divider-sync"></div>
+
+      <div id="sync-section">
+        <div class="st" data-i18n-mode="text">Sync &amp; Clean</div>
+        <div class="tg">
+          <button class="to on" id="btn-sync" style="flex: 1; font-size: 12px; font-family: var(--f); padding: 8px;" data-i18n-mode="text">Sync</button>
+        </div>
+      </div>
+
+      <div class="divider" id="divider-export"></div>
+
+      <div id="export-section">
         <div class="export-toggle st" id="export-toggle">
-          <span>Export</span>
+          <span data-i18n-mode="text">Export</span>
           <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="export-body" id="export-body">
@@ -105,33 +132,63 @@
       <div class="divider"></div>
 
       <div>
-        <div class="st">Download with yt-dlp</div>
+        <div class="st" data-i18n-mode="text">Download with yt-dlp</div>
         <div class="fmt-row">
-          <span class="fmt-label">Format</span>
+          <span class="fmt-label" data-i18n-mode="text">Format</span>
           <div class="tg">
-            <button class="to on" data-fmt="fast">Fast</button>
-            <button class="to" data-fmt="mp3">mp3</button>
+            <button class="to" data-fmt="fast" data-i18n-mode="text">Fast</button>
+            <button class="to on" data-fmt="mp3">mp3</button>
           </div>
         </div>
 
-        <div class="field-label">Output folder</div>
+        <div class="field-label" data-i18n-mode="text">Output folder</div>
         <div class="path-row">
           <input type="text" id="path-input" class="path-text-input" placeholder="C:\Users\you\Music  or  /home/you/Music" autocomplete="off" spellcheck="false"/>
-          <button class="ib path-browse-btn" id="path-browse" title="Browse…">
+          <button class="ib path-browse-btn" id="path-browse" title="Browse…" data-i18n-mode="title">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           </button>
         </div>
 
-        <button class="btn primary full" id="btn-download" style="margin-top:10px">Download All</button>
+        <button class="btn primary full" id="btn-download" style="margin-top:10px" data-i18n-mode="text">Download All</button>
       </div>
 
-      <footer>Ctrl+Shift+F open · Ctrl+D like+bookmark</footer>
+      <footer>Ctrl+Shift+F · Alt+F</footer>
     </aside>
 
     <div class="splitter" id="splitter" aria-hidden="true"></div>
 
+    <div class="terminal-column">
+    <div class="tab-download-stats" id="tab-download-stats">
+        <button class="tab-stat-card" data-stat-action="downloaded">
+          <span class="tab-stat-value" id="stat-downloaded">0</span>
+          <span class="tab-stat-label" data-i18n-mode="text">Downloaded</span>
+        </button>
+        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="unavailable">
+          <span class="tab-stat-value" id="stat-unavailable">0</span>
+          <span class="tab-stat-label" data-i18n-mode="text">Unavailable</span>
+        </button>
+        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="ageRestricted">
+          <span class="tab-stat-value" id="stat-ageRestricted">0</span>
+          <span class="tab-stat-label" data-i18n-mode="text">Age restricted</span>
+        </button>
+        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="copyright">
+          <span class="tab-stat-value" id="stat-copyright">0</span>
+          <span class="tab-stat-label" data-i18n-mode="text">Copyright claim</span>
+        </button>
+        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="terminated">
+          <span class="tab-stat-value" id="stat-terminated">0</span>
+          <span class="tab-stat-label" data-i18n-mode="text">Channel terminated</span>
+        </button>
+    </div>
+
     <section class="terminal-panel" id="terminal-panel">
-      <div class="terminal-title">Download terminal</div>
+      <div class="terminal-head-row">
+        <div class="terminal-title" data-i18n-mode="text">Download terminal</div>
+        <div class="terminal-filter-actions" id="terminal-filter-actions" hidden>
+          <button class="terminal-link-action" id="terminal-retry-all" data-i18n-mode="text">Retry all</button>
+          <button class="terminal-link-action" id="terminal-login" data-i18n-mode="text" hidden>Login</button>
+        </div>
+      </div>
       <div id="progress-section" class="visible">
         <div class="prog-header">
           <span class="prog-filename" id="dl-filename">—</span>
@@ -141,13 +198,17 @@
           </div>
         </div>
         <div class="prog-bar-wrap"><div class="prog-bar" id="dl-bar"></div></div>
-        <div class="prog-counter">Track <span id="dl-current">0</span> / <span id="dl-total">0</span> — <span id="dl-pct">0%</span></div>
+        <div class="prog-counter"><span data-i18n-mode="text">Track</span> <span id="dl-current">0</span> / <span id="dl-total">0</span> — <span id="dl-pct">0%</span></div>
+        <div class="terminal-filter-label" id="terminal-filter-label" hidden></div>
+        <div class="terminal-filter-list" id="terminal-filter-list" hidden></div>
         <div class="log-area" id="dl-log"></div>
       </div>
     </section>
+    </div>
   </div>
 </div>
 <div id="toast"></div>
+<script src="i18n.js"></script>
 <script src="ui.js"></script>
 </body>
 </html>

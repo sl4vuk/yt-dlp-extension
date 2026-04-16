@@ -11,6 +11,7 @@ import os
 import subprocess
 import re
 import glob
+import webbrowser
 
 
 ACTIVE_PROC = None
@@ -209,6 +210,7 @@ def download(msg):
     title = msg.get("title", video_id)
     fmt = msg.get("format", "fast")
     out_path = os.path.expanduser(msg.get("outputPath", os.path.expanduser("~")))
+    cookie_mode = msg.get("cookieMode", "off")
 
     os.makedirs(out_path, exist_ok=True)
 
@@ -236,6 +238,9 @@ def download(msg):
         cmd += ["--format", "bestaudio/best"]
     else:
         cmd += ["--format", "bestaudio/best"]
+
+    if cookie_mode == "browser":
+        cmd += ["--cookies-from-browser", "chrome"]
 
     cmd.append(url)
 
@@ -327,6 +332,28 @@ def download(msg):
         ACTIVE_OUTPUT_PATH = None
 
 
+def open_folder(folder_path):
+    path = os.path.expanduser(folder_path or "")
+    if not path or not os.path.isdir(path):
+        send_message({"type": "open_folder_result", "ok": False, "error": "Folder not found"})
+        return
+
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
+        send_message({"type": "open_folder_result", "ok": True})
+    except Exception as e:
+        try:
+            webbrowser.open(f"file://{path}")
+            send_message({"type": "open_folder_result", "ok": True})
+        except Exception:
+            send_message({"type": "open_folder_result", "ok": False, "error": str(e)})
+
+
 def main():
     while True:
         msg = read_message()
@@ -338,6 +365,8 @@ def main():
             download(msg)
         elif action == "resolve_path":
             resolve_path(msg.get("folderName", ""))
+        elif action == "open_folder":
+            open_folder(msg.get("folderPath", ""))
         elif action == "cancel":
             cancel_active_download()
             if ACTIVE_OUTPUT_PATH and ACTIVE_VIDEO_ID:

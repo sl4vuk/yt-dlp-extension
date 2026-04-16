@@ -1,15 +1,17 @@
 {
   "manifest_version": 3,
   "name": "YT Bookmark Cleaner",
-  "version": "2.1",
+  "version": "2.6",
   "description": "YouTube bookmark manager, sync & downloader with yt-dlp",
 
   "permissions": [
     "bookmarks",
     "storage",
-    "windows",
     "tabs",
-    "nativeMessaging"
+    "nativeMessaging",
+    "sidePanel",
+    "clipboardRead",
+    "cookies"
   ],
 
   "background": {
@@ -21,14 +23,18 @@
     "default_popup": "ui.html"
   },
 
+  "side_panel": {
+    "default_path": "ui.html?mode=sidebar"
+  },
+
   "commands": {
-    "toggle-ui": {
+    "_execute_action": {
       "suggested_key": { "default": "Ctrl+Shift+F" },
-      "description": "Open YT Bookmark Cleaner"
+      "description": "Activate the extension"
     },
-    "auto-like": {
-      "suggested_key": { "default": "Ctrl+Shift+L" },
-      "description": "Auto-like current YouTube video (use Ctrl+D on page for like+bookmark)"
+    "quick-download": {
+      "suggested_key": { "default": "Alt+F" },
+      "description": "Download current YouTube / YT Music video with yt-dlp"
     }
   },
 
@@ -50,9 +56,16 @@
     }
   ],
 
+  "host_permissions": [
+    "https://translate.googleapis.com/*",
+    "https://www.youtube.com/*",
+    "https://music.youtube.com/*",
+    "https://accounts.google.com/*"
+  ],
+
   "web_accessible_resources": [
     {
-      "resources": ["ui.html"],
+      "resources": ["ui.html", "settings.html"],
       "matches": ["<all_urls>"]
     }
   ]

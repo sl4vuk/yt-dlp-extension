@@ -9,7 +9,6 @@ Dark/light, borderless, crimson-accented Chrome extension for managing YouTube b
 - **Sync YT ↔ Music** — auto-creates the missing youtube.com or music.youtube.com bookmark for each video, deduplicating by video ID
 - **Export** — TXT, CSV, Netscape HTML
 - **Download with yt-dlp** — m4a (fast, default) or mp3, real progress bar, skips existing files, URL embedded in metadata
-- **Auto-like (Ctrl+D)** — works on youtube.com and music.youtube.com
 - **Dark / Light mode** — toggle in header, persisted
 - **View modes** — Popup, Window, Tab
 - All settings persisted in chrome.storage.local
@@ -120,8 +119,8 @@ The path is saved automatically and remembered every time you open the extension
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+Shift+F` | Open/close the extension UI |
-| `Ctrl+D` | Auto-like + bookmark current YouTube/Music video |
+| `Ctrl+Shift+F` | Activate the extension |
+| `Alt+F` | Download current YouTube / YT Music video with yt-dlp |
 
 ---
 

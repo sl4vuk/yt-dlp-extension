@@ -107,24 +107,10 @@
     });
   }
 
-  // ── CTRL+D: LIKE + BOOKMARK (prevent default browser bookmark) ─
-  document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-      const clean = getCleanUrl(window.location.href);
-      if (!clean) return; // not a video page — let browser handle it
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      triggerLike();
-      bookmarkCurrent();
-      showToast('❤️ Liked + Bookmarked');
-    }
-  }, true);
-
-  // Relay from background (keyboard shortcut command)
+  // Relay from background
   chrome.runtime.onMessage.addListener(msg => {
-    if (msg.type === 'AUTO_LIKE') {
-      triggerLike();
-      bookmarkCurrent();
+    if (msg.type === 'QUICK_DOWNLOAD_TOAST') {
+      showToast(msg.msg || '');
     }
   });
 

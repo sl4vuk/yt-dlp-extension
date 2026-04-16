@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="settings.css"/>
+  <title>YT Bookmark Cleaner — Settings</title>
+</head>
+<body>
+<div id="settings-app">
+
+  <!-- SIDEBAR NAV -->
+  <nav class="settings-nav" id="settings-nav">
+    <div class="nav-header">
+      <div class="nav-logo">
+        <div class="nav-logo-dot"></div>
+        <span class="nav-logo-text">YT Bookmark Cleaner</span>
+      </div>
+      <span class="nav-version" id="nav-version">v2.6</span>
+    </div>
+    <ul class="nav-links">
+      <li class="nav-item active" data-section="general">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>General</span>
+      </li>
+      <li class="nav-item" data-section="shortcuts">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8M6 16h.01M18 16h.01M10 16h4"/></svg>
+        <span>Shortcuts</span>
+      </li>
+      <li class="nav-item" data-section="import-export">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Import / Export</span>
+      </li>
+      <li class="nav-item" data-section="about">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>About</span>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="settings-main" id="settings-main">
+
+    <!-- ═══════ GENERAL ═══════ -->
+    <section class="settings-section active" id="section-general">
+      <h1 class="section-title" data-i18n-mode="text">General</h1>
+      <p class="section-desc" data-i18n-mode="text">Core preferences and behavior settings.</p>
+
+      <div class="settings-card language-card">
+        <div class="language-card-head">
+          <div class="setting-label" data-i18n-mode="text">Interface Language</div>
+          <div class="setting-hint" data-i18n-mode="text">Controls the extension UI language.</div>
+        </div>
+        <div class="language-picker">
+          <input type="search" id="set-interface-language-search" class="setting-input language-search-input" placeholder="Search languages" autocomplete="off" data-i18n-mode="placeholder" />
+          <select id="set-interface-language" class="setting-select language-select" size="8"></select>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Default Bookmark Folder</div>
+            <div class="setting-hint" data-i18n-mode="text">This folder will always be pre-selected when the extension opens.</div>
+          </div>
+          <select id="set-default-folder" class="setting-select"></select>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Auto Sync & Clean</div>
+            <div class="setting-hint" data-i18n-mode="text">When enabled, sync runs automatically. The manual Sync button will be hidden from the panel.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="set-auto-sync"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Show Export Section</div>
+            <div class="setting-hint" data-i18n-mode="text">Show or hide the Export menu (TXT, CSV, HTML) in the panel.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="set-show-export"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+
+      <div class="settings-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Default Output Folder</div>
+            <div class="setting-hint" data-i18n-mode="text">Where downloaded songs will be saved. You can type a path or browse.</div>
+          </div>
+          <div class="setting-path-row">
+            <input type="text" id="set-download-path" class="setting-input" placeholder="C:\Users\you\Music" autocomplete="off" spellcheck="false"/>
+            <button class="setting-browse-btn" id="set-browse-path" title="Browse…" data-i18n-mode="title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Panel Mode</div>
+            <div class="setting-hint" data-i18n-mode="text">Choose how the extension panel opens: as a popup or in the sidebar.</div>
+          </div>
+          <select id="set-panel-mode" class="setting-select">
+            <option value="popup" data-i18n-mode="text">Popup</option>
+            <option value="sidebar" data-i18n-mode="text">Sidebar</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Theme</div>
+            <div class="setting-hint" data-i18n-mode="text">Choose the appearance. System automatically follows your OS setting.</div>
+          </div>
+          <select id="set-theme" class="setting-select">
+            <option value="system" data-i18n-mode="text">System</option>
+            <option value="dark" data-i18n-mode="text">Dark</option>
+            <option value="light" data-i18n-mode="text">Light</option>
+          </select>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ═══════ SHORTCUTS ═══════ -->
+    <section class="settings-section" id="section-shortcuts">
+      <h1 class="section-title" data-i18n-mode="text">Shortcuts</h1>
+      <p class="section-desc" data-i18n-mode="text">Customize keyboard shortcuts. Changes apply to the browser's extension shortcut settings.</p>
+
+      <div class="settings-card">
+        <div class="shortcut-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Download current YouTube / YT Music video with yt-dlp</div>
+          </div>
+          <div class="shortcut-key-display" id="shortcut-download">
+            <span class="key-badge">Alt + F</span>
+            <button class="shortcut-open-btn" id="open-shortcuts-download" title="Open extension shortcuts" data-i18n-mode="title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="shortcut-divider"></div>
+
+        <div class="shortcut-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n-mode="text">Activate the extension</div>
+            <div class="setting-hint" data-i18n-mode="text">Opens popup or sidebar based on Panel Mode.</div>
+          </div>
+          <div class="shortcut-key-display" id="shortcut-panel">
+            <span class="key-badge">Ctrl + Shift + F</span>
+            <button class="shortcut-open-btn" id="open-shortcuts-panel" title="Open extension shortcuts" data-i18n-mode="title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card settings-card-info">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span data-i18n-mode="text">To change key bindings, go to your browser's Extensions → Keyboard shortcuts page. These defaults are applied automatically when the extension is installed.</span>
+      </div>
+    </section>
+
+    <!-- ═══════ IMPORT / EXPORT ═══════ -->
+    <section class="settings-section" id="section-import-export">
+      <h1 class="section-title">Import / Export</h1>
+      <p class="section-desc">Backup or restore your settings.</p>
+
+      <div class="settings-card">
+        <div class="card-section-title">IMPORT SETTINGS</div>
+        <p class="card-section-hint">Load a settings file from your computer, drag & drop, or import from a URL.</p>
+        <div class="drop-zone" id="import-drop-zone">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Drop JSON file here, or</span>
+          <button class="drop-zone-btn" id="import-browse-btn">Browse file</button>
+          <input type="file" id="import-file-input" accept=".json" style="display:none"/>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="card-section-title">EXPORT SETTINGS</div>
+        <p class="card-section-hint">Save your current settings as a JSON file.</p>
+        <button class="action-btn" id="export-settings-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export settings.json
+        </button>
+      </div>
+
+      <div class="settings-card settings-card-danger">
+        <div class="card-section-title">RESET SETTINGS</div>
+        <p class="card-section-hint">Restore all settings to their default values. This cannot be undone.</p>
+        <button class="action-btn danger" id="reset-settings-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Reset to defaults
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══════ ABOUT ═══════ -->
+    <section class="settings-section" id="section-about">
+      <h1 class="section-title">About</h1>
+      <p class="section-desc"></p>
+
+      <div class="settings-card about-card">
+        <div class="about-icon">
+          <img src="icons/icon128.png" alt="YT Bookmark Cleaner" width="56" height="56"/>
+        </div>
+        <div class="about-name">YT Bookmark Cleaner</div>
+        <div class="about-version" id="about-version">Version 2.6</div>
+
+        <div class="about-meta">
+          <div class="about-meta-row">
+            <span class="about-meta-label">License</span>
+            <span class="about-meta-value">MIT</span>
+          </div>
+          <div class="about-meta-row">
+            <span class="about-meta-label">Repository</span>
+            <a class="about-meta-link" href="https://github.com/sl4vuk/Bulk-YT-Downloader" target="_blank" rel="noopener">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+              github.com/sl4vuk/Bulk-YT-Downloader
+            </a>
+          </div>
+        </div>
+
+        <a class="action-btn" href="https://github.com/sl4vuk/Bulk-YT-Downloader" target="_blank" rel="noopener">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          View on GitHub
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- TOAST -->
+  <div id="settings-toast"></div>
+</div>
+
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>
