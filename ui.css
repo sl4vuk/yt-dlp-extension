@@ -27,6 +27,11 @@
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 13px; font-family: var(--f); background: var(--bg); color: var(--tx); }
 body { background: var(--bg); min-height: 100vh; min-width: 0; }
+body.sidebar-mode {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+body.sidebar-mode::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 #app { padding: 12px; min-height: 100vh; }
 body.popup-mode { width: 380px; min-width: 380px; }
@@ -99,7 +104,7 @@ body.tab-mode .terminal-panel { flex: 1; min-width: 420px; min-height: 0; }
   font-size: 24px;
   line-height: 1;
 }
-.tab-stat-card-danger .tab-stat-value { color: #d50531; }
+.tab-stat-card-danger .tab-stat-value { color: #ffffff; }
 .tab-stat-label {
   font-size: 10px;
   letter-spacing: .08em;
@@ -146,7 +151,8 @@ select:focus { outline: none; background: var(--bg3); }
 .btn.acc, .btn.primary {
   background: #19080c; border-bottom: 2px solid var(--acc); border-radius: 0;
 }
-.btn.acc:hover, .btn.primary:hover { background: #271016; }
+.btn.acc:hover, .btn.primary:hover,
+.btn.acc:active, .btn.primary:active { background: #120509; }
 
 .fmt-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
 .fmt-label { font-size: 11px; color: var(--tx2); flex: 1; }
@@ -155,12 +161,15 @@ select:focus { outline: none; background: var(--bg3); }
 .to.on { background: var(--bg3); color: var(--tx); }
 #btn-sync.to.on,
 #btn-sync.to {
-  background: #19080c;
+  background: #151515;
   color: var(--tx);
+  border: none;
 }
 #btn-sync.to.on:hover,
-#btn-sync.to:hover {
-  background: #271016;
+#btn-sync.to.on:active,
+#btn-sync.to:hover,
+#btn-sync.to:active {
+  background: #2a2a2a;
 }
 
 .export-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
@@ -195,11 +204,12 @@ select:focus { outline: none; background: var(--bg3); }
   background: none;
   color: #d50531;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
   padding: 0;
 }
-.terminal-link-action:hover { color: #f0617c; }
+.terminal-link-action:hover,
+.terminal-link-action:active { color: #84011d; }
 .terminal-filter-label {
   font-size: 11px;
   color: var(--tx2);

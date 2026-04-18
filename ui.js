@@ -37,6 +37,7 @@ const sidebar = $('sidebar');
 const splitter = $('splitter');
 const tabStatCards = document.querySelectorAll('.tab-stat-card');
 const statDownloaded = $('stat-downloaded');
+const statDownloadedLabel = document.querySelector('.tab-stat-card[data-stat-action="downloaded"] .tab-stat-label');
 const statAgeRestricted = $('stat-ageRestricted');
 const statUnavailable = $('stat-unavailable');
 const statCopyright = $('stat-copyright');
@@ -95,6 +96,7 @@ let downloadDashboardState = {
     copyright: 0,
     terminated: 0,
   },
+  downloadedItems: [],
   issues: {
     ageRestricted: [],
     unavailable: [],
@@ -160,6 +162,7 @@ function normalizeDashboardState(raw = {}) {
       copyright: Number(raw.stats?.copyright) || 0,
       terminated: Number(raw.stats?.terminated) || 0,
     },
+    downloadedItems: Array.isArray(raw.downloadedItems) ? raw.downloadedItems : [],
     issues: {
       ageRestricted: Array.isArray(raw.issues?.ageRestricted) ? raw.issues.ageRestricted : [],
       unavailable: Array.isArray(raw.issues?.unavailable) ? raw.issues.unavailable : [],
@@ -169,9 +172,20 @@ function normalizeDashboardState(raw = {}) {
   };
 }
 
+function getFailedItems() {
+  return [
+    ...downloadDashboardState.issues.unavailable,
+    ...downloadDashboardState.issues.ageRestricted,
+    ...downloadDashboardState.issues.copyright,
+    ...downloadDashboardState.issues.terminated,
+  ];
+}
+
 function renderDashboardStats() {
   const stats = downloadDashboardState.stats;
-  statDownloaded.textContent = stats.downloaded;
+  const downloadedMode = currentDashboardBucket === 'failed' ? 'failed' : 'downloaded';
+  statDownloaded.textContent = downloadedMode === 'failed' ? getFailedItems().length : stats.downloaded;
+  if (statDownloadedLabel) statDownloadedLabel.textContent = downloadedMode === 'failed' ? 'Failed' : 'Downloaded';
   statAgeRestricted.textContent = downloadDashboardState.issues.ageRestricted.length;
   statUnavailable.textContent = downloadDashboardState.issues.unavailable.length;
   statCopyright.textContent = downloadDashboardState.issues.copyright.length;
@@ -641,10 +655,13 @@ function clearTerminalFilter() {
   terminalFilterLabel.textContent = '';
   terminalFilterList.innerHTML = '';
   tabStatCards.forEach(card => card.classList.remove('active'));
+  renderDashboardStats();
 }
 
 function getFilterTitle(bucket) {
   const map = {
+    downloaded: 'Downloaded',
+    failed: 'Failed',
     unavailable: 'Unavailable',
     ageRestricted: 'Age restricted',
     copyright: 'Copyright claim',
@@ -654,6 +671,8 @@ function getFilterTitle(bucket) {
 }
 
 function getIssuesForBucket(bucket) {
+  if (bucket === 'downloaded') return downloadDashboardState.downloadedItems || [];
+  if (bucket === 'failed') return getFailedItems();
   return downloadDashboardState.issues[bucket] || [];
 }
 
@@ -667,12 +686,18 @@ async function persistIssueState(nextIssues) {
 function renderTerminalFilter(bucket) {
   currentDashboardBucket = bucket;
   const issues = getIssuesForBucket(bucket);
-  tabStatCards.forEach(card => card.classList.toggle('active', card.dataset.statAction === bucket));
-  terminalFilterActions.hidden = false;
+  tabStatCards.forEach(card => {
+    const action = card.dataset.statAction;
+    card.classList.toggle('active', (bucket === 'failed' && action === 'downloaded') || action === bucket);
+  });
+  const isFailureFilter = bucket !== 'downloaded' && issues.length > 0;
+  terminalFilterActions.hidden = !isFailureFilter;
   terminalFilterLabel.hidden = false;
   terminalFilterList.hidden = false;
   terminalLogin.hidden = bucket !== 'ageRestricted';
+  terminalRetryAll.hidden = bucket === 'downloaded';
   terminalFilterLabel.textContent = `${getFilterTitle(bucket)} · ${issues.length}`;
+  renderDashboardStats();
 
   if (!issues.length) {
     terminalFilterList.innerHTML = '<div class="terminal-filter-item"><div class="terminal-filter-url">No items in this category right now.</div></div>';
@@ -748,7 +773,17 @@ tabStatCards.forEach(card => {
   card.addEventListener('click', () => {
     const action = card.dataset.statAction;
     if (action === 'downloaded') {
-      openDownloadedFolder();
+      if (currentDashboardBucket === 'downloaded') {
+        renderTerminalFilter('failed');
+      } else if (currentDashboardBucket === 'failed') {
+        clearTerminalFilter();
+      } else {
+        renderTerminalFilter('downloaded');
+      }
+      return;
+    }
+    if (currentDashboardBucket === action) {
+      clearTerminalFilter();
       return;
     }
     renderTerminalFilter(action);
@@ -1062,6 +1097,7 @@ async function init() {
   const mode = params.get('mode') || 'popup';
   document.body.classList.toggle('tab-mode', mode === 'tab');
   document.body.classList.toggle('popup-mode', mode !== 'tab' && mode !== 'sidebar');
+  document.body.classList.toggle('sidebar-mode', mode === 'sidebar');
 
   const saved = await store.get(['theme', 'format', 'downloadPath', 'lastFolder', 'defaultFolder', 'downloadMode']);
   await applyInterfaceLanguage();
@@ -1145,7 +1181,7 @@ async function init() {
         updateTotalForCurrentMode();
       }
     }
-    if (changes.downloadStatsJson || changes.downloadIssuesJson) loadDashboardState();
+    if (changes.downloadStatsJson || changes.downloadIssuesJson || changes.downloadedItemsJson) loadDashboardState();
     if (changes.defaultFolder && !folderSel.value) {
       folderSel.value = changes.defaultFolder.newValue || '';
       if (currentMode === 'bookmarks') refreshTotal(folderSel.value);

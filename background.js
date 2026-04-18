@@ -24,6 +24,8 @@ let downloadIssues = {
   terminated: [],
 };
 
+let downloadedItems = [];
+
 // ── PANEL MODE (popup vs sidebar) ────────────────────────────────
 let panelMode = 'popup'; // 'popup' or 'sidebar'
 let sidePanelOpen = false;
@@ -35,7 +37,7 @@ async function loadPanelMode() {
 }
 
 async function loadDownloadState() {
-  const data = await new Promise(r => chrome.storage.local.get(['downloadStatsJson', 'downloadIssuesJson'], r));
+  const data = await new Promise(r => chrome.storage.local.get(['downloadStatsJson', 'downloadIssuesJson', 'downloadedItemsJson'], r));
 
   if (data?.downloadStatsJson) {
     try {
@@ -61,12 +63,20 @@ async function loadDownloadState() {
       };
     } catch {}
   }
+
+  if (data?.downloadedItemsJson) {
+    try {
+      const parsed = JSON.parse(data.downloadedItemsJson);
+      downloadedItems = Array.isArray(parsed) ? parsed : [];
+    } catch {}
+  }
 }
 
 function persistDownloadState() {
   chrome.storage.local.set({
     downloadStatsJson: JSON.stringify(downloadStats),
     downloadIssuesJson: JSON.stringify(downloadIssues),
+    downloadedItemsJson: JSON.stringify(downloadedItems),
   });
 }
 
@@ -206,6 +216,17 @@ function sanitizeIssueItem(item, bucket) {
   };
 }
 
+function sanitizeDownloadedItem(item) {
+  if (!item) return null;
+  return {
+    url: item.sourceUrl || item.url || '',
+    title: item.title || item.videoId || 'Unknown title',
+    videoId: item.videoId || '',
+    sourceMode: item.sourceMode || 'unknown',
+    addedAt: Date.now(),
+  };
+}
+
 function removeIssueMatch(item) {
   const sourceUrl = item?.sourceUrl || item?.url || '';
   const videoId = item?.videoId || '';
@@ -233,12 +254,27 @@ function addIssue(bucket, item) {
   }
 }
 
+function addDownloadedItem(item) {
+  const downloaded = sanitizeDownloadedItem(item);
+  if (!downloaded) return;
+  const existingIndex = downloadedItems.findIndex(entry =>
+    (downloaded.url && entry.url === downloaded.url) ||
+    (downloaded.videoId && entry.videoId === downloaded.videoId)
+  );
+  if (existingIndex >= 0) {
+    downloadedItems[existingIndex] = { ...downloadedItems[existingIndex], ...downloaded };
+  } else {
+    downloadedItems.unshift(downloaded);
+  }
+}
+
 function updateStatsFromResult(result, item) {
   if (!result) return;
 
   if (result.success || result.skipped) {
     if (result.success) {
       downloadStats.downloaded += 1;
+      addDownloadedItem(item);
     }
     removeIssueMatch(item);
     persistDownloadState();
@@ -256,6 +292,7 @@ function updateStatsFromResult(result, item) {
 function getDownloadDashboardState() {
   return {
     stats: { ...downloadStats },
+    downloadedItems: [...downloadedItems],
     issues: {
       ageRestricted: [...downloadIssues.ageRestricted],
       unavailable: [...downloadIssues.unavailable],
@@ -422,7 +459,19 @@ function getNativePort() {
   try {
     nativePort = chrome.runtime.connectNative('com.ytbookmark.ytdlp');
     nativePort.onMessage.addListener(handleNativeMessage);
-    nativePort.onDisconnect.addListener(() => { nativePort = null; });
+    nativePort.onDisconnect.addListener(() => {
+      nativePort = null;
+      for (const [key, pending] of pendingDownloads.entries()) {
+        if (key === '__resolve__') {
+          pending.resolve({ path: null });
+        } else if (key === '__open_folder__') {
+          pending.resolve({ ok: false, error: 'Native host disconnected' });
+        } else {
+          pending.resolve({ success: false, skipped: false, error: 'Native host disconnected', warning: null });
+        }
+        pendingDownloads.delete(key);
+      }
+    });
   } catch (e) {
     nativePort = null;
   }
@@ -567,44 +616,55 @@ async function processQueue() {
   isDownloading = true;
   queueCancelled = false;
 
-  while (currentIndex < downloadQueue.length) {
-    if (cancelRequested) {
-      queueCancelled = true;
-      break;
+  try {
+    while (currentIndex < downloadQueue.length) {
+      if (cancelRequested) {
+        queueCancelled = true;
+        break;
+      }
+      const item = downloadQueue[currentIndex];
+
+      chrome.runtime.sendMessage({
+        type:    'QUEUE_UPDATE',
+        current: currentIndex + 1,
+        total:   downloadQueue.length,
+        title:   item.title
+      }).catch(() => {});
+
+      currentTitle = item.title || '';
+
+      const result = await downloadTrackNative(item);
+      updateStatsFromResult(result, item);
+
+      chrome.runtime.sendMessage({
+        type:    'QUEUE_RESULT',
+        videoId: item.videoId,
+        title:   item.title,
+        result,
+        item,
+      }).catch(() => {});
+
+      currentIndex++;
     }
-    const item = downloadQueue[currentIndex];
-
+  } catch (error) {
+    const item = currentIndex < downloadQueue.length ? downloadQueue[currentIndex] : null;
     chrome.runtime.sendMessage({
-      type:    'QUEUE_UPDATE',
-      current: currentIndex + 1,
-      total:   downloadQueue.length,
-      title:   item.title
-    }).catch(() => {});
-
-    currentTitle = item.title || '';
-
-    const result = await downloadTrackNative(item);
-    updateStatsFromResult(result, item);
-
-    chrome.runtime.sendMessage({
-      type:    'QUEUE_RESULT',
-      videoId: item.videoId,
-      title:   item.title,
-      result,
+      type: 'QUEUE_RESULT',
+      videoId: item?.videoId || '',
+      title: item?.title || 'Download',
+      result: { success: false, skipped: false, error: error?.message || String(error || 'Unknown queue error') },
       item,
     }).catch(() => {});
+  } finally {
+    chrome.runtime.sendMessage({ type: 'QUEUE_DONE', cancelled: queueCancelled }).catch(() => {});
 
-    currentIndex++;
+    downloadQueue = [];
+    currentIndex  = 0;
+    currentTitle  = '';
+    isDownloading = false;
+    cancelRequested = false;
+    queueCancelled = false;
   }
-
-  chrome.runtime.sendMessage({ type: 'QUEUE_DONE', cancelled: queueCancelled }).catch(() => {});
-
-  downloadQueue = [];
-  currentIndex  = 0;
-  currentTitle  = '';
-  isDownloading = false;
-  cancelRequested = false;
-  queueCancelled = false;
 }
 
 
@@ -642,6 +702,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg.type === 'START_DOWNLOAD_QUEUE') {
+    if (isDownloading && pendingDownloads.size === 0) {
+      isDownloading = false;
+      currentIndex = 0;
+      currentTitle = '';
+      queueCancelled = false;
+      cancelRequested = false;
+    }
     downloadQueue = msg.queue;
     currentIndex  = 0;
     cancelRequested = false;
@@ -714,7 +781,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     panelMode = changes.panelMode.newValue || 'popup';
     updateActionBehavior();
   }
-  if (changes.downloadStatsJson || changes.downloadIssuesJson) {
+  if (changes.downloadStatsJson || changes.downloadIssuesJson || changes.downloadedItemsJson) {
     loadDownloadState();
   }
 });
