@@ -115,13 +115,18 @@ echo }
 echo [OK] Manifest written: !JSON_PATH!
 
 :: ── 8. Register in Windows Registry ─────────────────────────────
-set REG_KEY=HKCU\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.ytbookmark.ytdlp
-reg add "!REG_KEY!" /ve /t REG_SZ /d "!JSON_PATH!" /f >nul
+set REG_KEY_CHROME=HKCU\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.ytbookmark.ytdlp
+set REG_KEY_CHROMIUM=HKCU\SOFTWARE\Chromium\NativeMessagingHosts\com.ytbookmark.ytdlp
+set REG_KEY_EDGE=HKCU\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.ytbookmark.ytdlp
+
+reg add "!REG_KEY_CHROME!" /ve /t REG_SZ /d "!JSON_PATH!" /f >nul
 if errorlevel 1 (
-    echo [ERROR] Failed to write registry key.
+    echo [ERROR] Failed to write Chrome registry key.
     pause & exit /b 1
 )
-echo [OK] Registry key set.
+reg add "!REG_KEY_CHROMIUM!" /ve /t REG_SZ /d "!JSON_PATH!" /f >nul
+reg add "!REG_KEY_EDGE!" /ve /t REG_SZ /d "!JSON_PATH!" /f >nul
+echo [OK] Registry keys set for Chrome / Chromium / Edge.
 
 :: ── 9. Done ─────────────────────────────────────────────────────
 echo.
