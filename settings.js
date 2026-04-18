@@ -140,7 +140,7 @@ const DEFAULTS = {
   showExport: false,
   quickDownloadEnabled: true,
   downloadPath: '',
-  panelMode: 'popup',
+  panelMode: 'sidebar',
   theme: 'system',
   interfaceLanguage: 'en',
   format: 'mp3',

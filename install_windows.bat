@@ -75,19 +75,10 @@ echo [OK] native_host.py found: !HOST_PY!
 for /f "delims=" %%I in ('where !PYTHON!') do set PYTHON_EXE=%%I
 echo [OK] Python exe: !PYTHON_EXE!
 
-:: ── 6. Ask for Extension ID ──────────────────────────────────────
+:: ── 6. Use fixed Extension ID ────────────────────────────────────
 echo.
-echo To find your Extension ID:
-echo   1. Open Chrome and go to: chrome://extensions
-echo   2. Enable Developer mode (top-right toggle)
-echo   3. Find "YT Bookmark Cleaner" and copy its ID
-echo      (looks like: abcdefghijklmnopqrstuvwxyzabcdef)
-echo.
-set /p EXT_ID="Paste your Extension ID here and press Enter: "
-if "!EXT_ID!"=="" (
-    echo [ERROR] No Extension ID entered.
-    pause & exit /b 1
-)
+set EXT_ID=ilealfnjgomollhdmedilijpfepbkllp
+echo Using fixed unpacked Extension ID: !EXT_ID!
 
 :: ── 7. Write com.ytbookmark.ytdlp.json ──────────────────────────
 set JSON_PATH=%SCRIPT_DIR%com.ytbookmark.ytdlp.json
@@ -96,7 +87,7 @@ set JSON_PATH=%SCRIPT_DIR%com.ytbookmark.ytdlp.json
 :: (Chrome on Windows needs an .exe or .bat as the "path" in the manifest)
 set WRAPPER_BAT=%SCRIPT_DIR%native_host_launcher.bat
 echo @echo off > "!WRAPPER_BAT!"
-echo "!PYTHON_EXE!" "!HOST_PY!" >> "!WRAPPER_BAT!"
+echo "!PYTHON_EXE!" -u "!HOST_PY!" >> "!WRAPPER_BAT!"
 
 :: Write the JSON manifest — escape backslashes
 set WRAPPER_ESC=!WRAPPER_BAT:\=\\!

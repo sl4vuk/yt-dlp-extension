@@ -9,6 +9,9 @@
   --tx:  #f6f6f6;
   --tx2: #b2b2b2;
   --tx3: #7e7e7e;
+  --scroll-track: rgba(255,255,255,0.05);
+  --scroll-thumb: rgba(255,255,255,0.16);
+  --scroll-thumb-hover: rgba(255,255,255,0.28);
   --r: 8px;
   --tr: 160ms ease;
   --f: 'DM Sans', sans-serif;
@@ -21,11 +24,53 @@
   --tx:  #0d0d0d;
   --tx2: #2f2f2f;
   --tx3: #575757;
+  --scroll-track: rgba(0,0,0,0.05);
+  --scroll-thumb: rgba(0,0,0,0.16);
+  --scroll-thumb-hover: rgba(0,0,0,0.28);
 }
 
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 13px; font-family: var(--f); background: var(--bg); color: var(--tx); }
 body { background: var(--bg); min-height: 100vh; display: flex; }
+html,
+body,
+.settings-main,
+.language-options,
+.oauth-cookies-text {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.settings-main::-webkit-scrollbar,
+.language-options::-webkit-scrollbar,
+.oauth-cookies-text::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+.settings-main::-webkit-scrollbar-track,
+.language-options::-webkit-scrollbar-track,
+.oauth-cookies-text::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 999px;
+}
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+.settings-main::-webkit-scrollbar-thumb,
+.language-options::-webkit-scrollbar-thumb,
+.oauth-cookies-text::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+}
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+.settings-main::-webkit-scrollbar-thumb:hover,
+.language-options::-webkit-scrollbar-thumb:hover,
+.oauth-cookies-text::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
 
 #settings-app {
   display: flex;
@@ -209,7 +254,7 @@ body { background: var(--bg); min-height: 100vh; display: flex; }
   flex-shrink: 0;
 }
 .language-combobox-trigger {
-  width: 260px;
+  width: 160px;
   max-width: 100%;
   display: flex;
   align-items: center;
@@ -217,10 +262,10 @@ body { background: var(--bg); min-height: 100vh; display: flex; }
   gap: 10px;
   background: var(--bg3);
   border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 6px;
+  padding: 8px 12px;
   color: var(--tx);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
 }
 .language-combobox-panel {
@@ -556,10 +601,10 @@ body { background: var(--bg); min-height: 100vh; display: flex; }
   background: rgba(213, 5, 49, 0.12);
   border-color: rgba(213, 5, 49, 0.28);
   color: #ff5f53;
-  padding: 13px 26px;
-  border-radius: 16px;
-  font-size: 14px;
-  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 400;
 }
 .reset-defaults-btn:hover {
   background: rgba(213, 5, 49, 0.18);

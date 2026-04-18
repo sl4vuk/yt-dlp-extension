@@ -4,6 +4,7 @@
   "path": "C:\\Users\\Administrator\\Downloads\\DEV\\yt-dlp-extension\\native_host_launcher.bat",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://acohegfiieekajfmdfenkjjkncgpcclh/"
+    "chrome-extension://acohegfiieekajfmdfenkjjkncgpcclh/",
+    "chrome-extension://ilealfnjgomollhdmedilijpfepbkllp/"
   ]
 }

@@ -3,6 +3,7 @@
   "name": "YT Bookmark Cleaner",
   "version": "2.6",
   "description": "YouTube bookmark manager, sync & downloader with yt-dlp",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuD9fm78Yb8xNfKpQCFvoQ4BRVs3j36UAGh28e1Ors7iDLIDSupDfnMjdeDXsdjOdBzeUGFTnvqbSAM1KKXY2tuQ9ABjXr3io+nZgpTQ0Yp1OW+A6bKbFjYZ3REo4ku6l9cAs9V1d/VOTxcLeuImO46V3G2i8Hnb90JNWL1iQBIKV60IZKhdQGZN/B7RQcf4HrjVyKaH0Pdn1Ph+i6C03m6QJ+6UIjxHufEGJNQZ7eYAQjgUpP8SyKnP0j2E6z1Xl4R2kl/nrFLfwj8gPsPuwa/zKxvlDL5u1QvCaCXMBVW8V57Hg3b3HZecfPMfMq4yK6xICxyQSzQ58OCYiI6xs/QIDAQAB",
 
   "permissions": [
     "bookmarks",

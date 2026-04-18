@@ -27,12 +27,12 @@ let downloadIssues = {
 let downloadedItems = [];
 
 // ── PANEL MODE (popup vs sidebar) ────────────────────────────────
-let panelMode = 'popup'; // 'popup' or 'sidebar'
+let panelMode = 'sidebar'; // 'popup' or 'sidebar'
 let sidePanelOpen = false;
 
 async function loadPanelMode() {
   const data = await new Promise(r => chrome.storage.local.get('panelMode', r));
-  panelMode = data.panelMode || 'popup';
+  panelMode = data.panelMode || 'sidebar';
   await updateActionBehavior();
 }
 

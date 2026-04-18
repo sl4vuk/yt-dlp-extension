@@ -14,24 +14,53 @@ import glob
 import webbrowser
 import tempfile
 
+try:
+    import msvcrt
+    import os as _os
+except Exception:
+    msvcrt = None
+
 
 ACTIVE_PROC = None
 ACTIVE_VIDEO_ID = None
 ACTIVE_OUTPUT_PATH = None
 
+
+def configure_stdio_binary_mode():
+    if not msvcrt:
+        return
+    try:
+        msvcrt.setmode(sys.stdin.fileno(), _os.O_BINARY)
+    except Exception:
+        pass
+    try:
+        msvcrt.setmode(sys.stdout.fileno(), _os.O_BINARY)
+    except Exception:
+        pass
+
 def read_message():
-    raw_length = sys.stdin.buffer.read(4)
-    if not raw_length:
+    try:
+        raw_length = sys.stdin.buffer.read(4)
+        if not raw_length or len(raw_length) < 4:
+            return None
+        length = struct.unpack("=I", raw_length)[0]
+        payload = sys.stdin.buffer.read(length)
+        if len(payload) < length:
+            return None
+        return json.loads(payload)
+    except Exception:
         return None
-    length = struct.unpack("=I", raw_length)[0]
-    return json.loads(sys.stdin.buffer.read(length))
 
 
 def send_message(obj):
-    encoded = json.dumps(obj).encode("utf-8")
-    sys.stdout.buffer.write(struct.pack("=I", len(encoded)))
-    sys.stdout.buffer.write(encoded)
-    sys.stdout.buffer.flush()
+    try:
+        encoded = json.dumps(obj).encode("utf-8")
+        sys.stdout.buffer.write(struct.pack("=I", len(encoded)))
+        sys.stdout.buffer.write(encoded)
+        sys.stdout.buffer.flush()
+        return True
+    except (BrokenPipeError, OSError):
+        return False
 
 
 def check_exists(output_path, video_id):
@@ -388,4 +417,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_stdio_binary_mode()
     main()
