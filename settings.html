@@ -19,9 +19,21 @@
       <span class="nav-version" id="nav-version">v2.6</span>
     </div>
     <ul class="nav-links">
+      <li class="nav-item" data-section="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Search</span>
+      </li>
       <li class="nav-item active" data-section="general">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span>General</span>
+      </li>
+      <li class="nav-item" data-section="download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Download</span>
+      </li>
+      <li class="nav-item" data-section="output">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <span>Output</span>
       </li>
       <li class="nav-item" data-section="shortcuts">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8M6 16h.01M18 16h.01M10 16h4"/></svg>
@@ -41,11 +53,28 @@
   <!-- MAIN CONTENT -->
   <main class="settings-main" id="settings-main">
 
+    <!-- ═══════ SEARCH ═══════ -->
+    <section class="settings-section" id="section-search">
+      <h1 class="section-title">Search</h1>
+      <p class="section-desc">Search a specific setting by name.</p>
+
+      <div class="search-box-bare">
+        <svg class="search-box-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="settings-search-input" class="search-settings-input" placeholder="Search settings…" autocomplete="off"/>
+        <button class="search-clear-btn" id="settings-search-clear" type="button" hidden>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="search-cat-filter" id="search-cat-filter"></div>
+      <div class="search-results" id="settings-search-results"></div>
+    </section>
+
     <!-- ═══════ GENERAL ═══════ -->
     <section class="settings-section active" id="section-general">
       <h1 class="section-title" data-i18n-mode="text">General</h1>
       <p class="section-desc" data-i18n-mode="text">Core preferences and behavior settings.</p>
 
+      <!-- Language — standalone -->
       <div class="settings-card language-card">
         <div class="setting-row setting-row-topaligned">
           <div class="setting-info">
@@ -55,114 +84,219 @@
           <div class="language-combobox" id="language-combobox">
             <button class="language-combobox-trigger" id="set-interface-language-trigger" type="button">
               <span id="set-interface-language-value">English</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="language-combobox-panel" id="set-interface-language-panel" hidden>
-              <input type="search" id="set-interface-language-search" class="setting-input language-search-input" placeholder="Search..." autocomplete="off" data-i18n-mode="placeholder" />
+              <input type="search" id="set-interface-language-search" class="setting-input language-search-input" placeholder="Search…" autocomplete="off" data-i18n-mode="placeholder"/>
               <div class="language-options" id="set-interface-language-options"></div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="settings-card">
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label" data-i18n-mode="text">Default Bookmark Folder</div>
-            <div class="setting-hint" data-i18n-mode="text">This folder will always be pre-selected when the extension opens.</div>
+      <!-- ── Appearance accordion ── -->
+      <details class="settings-accordion" open>
+        <summary class="accordion-summary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M20.188 10.934a8 8 0 1 0-8 10"/><path d="M16 18h6m-3-3v6"/></svg>
+          <div class="accordion-info">
+            <span class="accordion-title" data-i18n-mode="text">Appearance</span>
+            <span class="accordion-hint" data-i18n-mode="text">Theme and panel layout preferences.</span>
           </div>
-          <select id="set-default-folder" class="setting-select"></select>
+          <svg class="accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div class="accordion-body">
+
+          <!-- Theme -->
+          <div class="settings-card" id="setting-card-set-theme" data-setting-key="set-theme" data-setting-title="Theme" data-setting-category="General" data-setting-section="general">
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label" data-i18n-mode="text">Theme</div>
+                <div class="setting-hint" data-i18n-mode="text">Choose the appearance. System automatically follows your OS setting.</div>
+              </div>
+              <div class="radio-group" id="theme-radio-group">
+                <label class="radio-opt">
+                  <input type="radio" name="set-theme" value="system"/>
+                  <span class="radio-opt-inner">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                    <span data-i18n-mode="text">System</span>
+                  </span>
+                </label>
+                <label class="radio-opt">
+                  <input type="radio" name="set-theme" value="dark"/>
+                  <span class="radio-opt-inner">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <span data-i18n-mode="text">Dark</span>
+                  </span>
+                </label>
+                <label class="radio-opt">
+                  <input type="radio" name="set-theme" value="light"/>
+                  <span class="radio-opt-inner">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    <span data-i18n-mode="text">Light</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel Mode -->
+          <div class="settings-card" id="setting-card-set-panel-mode" data-setting-key="set-panel-mode" data-setting-title="Panel Mode" data-setting-category="General" data-setting-section="general">
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label" data-i18n-mode="text">Panel Mode</div>
+                <div class="setting-hint" data-i18n-mode="text">Choose how the extension panel opens: as a popup or in the sidebar.</div>
+              </div>
+              <div class="radio-group" id="panel-mode-radio-group">
+                <label class="radio-opt">
+                  <input type="radio" name="set-panel-mode" value="popup"/>
+                  <span class="radio-opt-inner">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16"/></svg>
+                    <span data-i18n-mode="text">Popup</span>
+                  </span>
+                </label>
+                <label class="radio-opt">
+                  <input type="radio" name="set-panel-mode" value="sidebar"/>
+                  <span class="radio-opt-inner">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+                    <span data-i18n-mode="text">Sidebar</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
         </div>
+      </details>
+
+      <!-- ── Behavior accordion ── -->
+      <details class="settings-accordion">
+        <summary class="accordion-summary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <div class="accordion-info">
+            <span class="accordion-title" data-i18n-mode="text">Behavior</span>
+            <span class="accordion-hint" data-i18n-mode="text">Sync, export, clipboard, and automation options.</span>
+          </div>
+          <svg class="accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div class="accordion-body">
+
+          <div class="settings-card" id="setting-card-set-auto-sync" data-setting-key="set-auto-sync" data-setting-title="Auto Sync &amp; Clean" data-setting-category="General" data-setting-section="general">
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label" data-i18n-mode="text">Auto Sync &amp; Clean</div>
+                <div class="setting-hint" data-i18n-mode="text">When enabled, sync runs automatically. The manual Sync button will be hidden from the panel.</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="set-auto-sync"/>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-card" id="setting-card-set-show-export" data-setting-key="set-show-export" data-setting-title="Show Export Section" data-setting-category="General" data-setting-section="general">
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label" data-i18n-mode="text">Show Export Section</div>
+                <div class="setting-hint" data-i18n-mode="text">Show or hide the Export menu (TXT, CSV, HTML) in the panel.</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="set-show-export"/>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- JS-injected automation toggles (clipboardAutoAdd, startDownload, etc.) -->
+          <div id="general-extra-settings"></div>
+
+        </div>
+      </details>
+
+      <!-- ── Paths accordion ── -->
+      <details class="settings-accordion">
+        <summary class="accordion-summary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <div class="accordion-info">
+            <span class="accordion-title" data-i18n-mode="text">Paths &amp; Folders</span>
+            <span class="accordion-hint" data-i18n-mode="text">Bookmark folder and default download location.</span>
+          </div>
+          <svg class="accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div class="accordion-body">
+
+          <div class="settings-card" id="setting-card-set-default-folder" data-setting-key="set-default-folder" data-setting-title="Default Bookmark Folder" data-setting-category="General" data-setting-section="general">
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label" data-i18n-mode="text">Default Bookmark Folder</div>
+                <div class="setting-hint" data-i18n-mode="text">This folder will always be pre-selected when the extension opens.</div>
+              </div>
+              <select id="set-default-folder" class="setting-select"></select>
+            </div>
+          </div>
+
+        </div>
+      </details>
+
+      <!-- ── Authentication accordion ── -->
+      <details class="settings-accordion">
+        <summary class="accordion-summary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <div class="accordion-info">
+            <span class="accordion-title" data-i18n-mode="text">Authentication</span>
+            <span class="accordion-hint" data-i18n-mode="text">Use cookies for age-restricted or private downloads.</span>
+          </div>
+          <svg class="accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div class="accordion-body">
+          <div class="settings-card oauth-card" id="oauth-card" id="setting-card-oauth-google-btn" data-setting-key="oauth-google-btn" data-setting-title="OAuth" data-setting-category="General" data-setting-section="general">
+            <div class="setting-row setting-row-topaligned oauth-card-row">
+              <div class="setting-info">
+                <div class="setting-label" data-i18n-mode="text">OAuth</div>
+                <div class="setting-hint" data-i18n-mode="text">Use cookies for age-restricted downloads. Google uses your signed-in browser profile. Anonymous captures cookies from your current YouTube tab.</div>
+              </div>
+              <div class="oauth-actions">
+                <button type="button" class="google-login-btn" id="oauth-google-btn">
+                  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd"><path d="M20.16 12.193c0-.603-.054-1.182-.155-1.739H12v3.288h4.575a3.91 3.91 0 0 1-1.696 2.565v2.133h2.747c1.607-1.48 2.535-3.659 2.535-6.248z" fill="#4285f4"/><path d="M12 20.5c2.295 0 4.219-.761 5.625-2.059l-2.747-2.133c-.761.51-1.735.811-2.878.811-2.214 0-4.088-1.495-4.756-3.504h-2.84v2.202A8.497 8.497 0 0 0 12 20.5z" fill="#34a853"/><path d="M7.244 13.615A5.11 5.11 0 0 1 6.977 12a5.11 5.11 0 0 1 .267-1.615V8.183h-2.84C3.828 9.33 3.5 10.628 3.5 12s.328 2.67.904 3.817l2.84-2.202z" fill="#fbbc05"/><path d="M12 6.881c1.248 0 2.368.429 3.249 1.271l2.438-2.438C16.215 4.342 14.291 3.5 12 3.5a8.497 8.497 0 0 0-7.596 4.683l2.84 2.202C7.912 8.376 9.786 6.881 12 6.881z" fill="#ea4335"/></svg>
+                  <span data-i18n-mode="text">Continue with Google</span>
+                </button>
+                <button type="button" class="action-btn" id="oauth-anonymous-btn" data-i18n-mode="text">Anonymous</button>
+              </div>
+            </div>
+            <div class="setting-hint" id="oauth-status" data-i18n-mode="text">No cookies captured yet.</div>
+            <div class="setting-label" data-i18n-mode="text">Cookies</div>
+            <textarea id="oauth-cookies-text" class="setting-input oauth-cookies-text" placeholder="YouTube cookies will appear here after capture or paste." spellcheck="false"></textarea>
+          </div>
+        </div>
+      </details>
+
+    </section>
+
+    <!-- ═══════ DOWNLOAD ═══════ -->
+    <section class="settings-section" id="section-download">
+      <h1 class="section-title">Download</h1>
+      <p class="section-desc">Speed, folders, quality, proxy, and download execution behavior.</p>
+      <div id="download-settings-container"></div>
+    </section>
+
+    <!-- ═══════ OUTPUT ═══════ -->
+    <section class="settings-section" id="section-output">
+      <h1 class="section-title">Output</h1>
+      <p class="section-desc">Filename rules, conversion options, and audio/video output preferences.</p>
+
+      <div class="output-mode-switch" id="output-mode-switch">
+        <button type="button" class="output-mode-btn active" data-output-mode="audio">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          Audio
+        </button>
+        <button type="button" class="output-mode-btn" data-output-mode="video">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          Video
+        </button>
       </div>
 
-      <div class="settings-card">
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label" data-i18n-mode="text">Auto Sync & Clean</div>
-            <div class="setting-hint" data-i18n-mode="text">When enabled, sync runs automatically. The manual Sync button will be hidden from the panel.</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="set-auto-sync"/>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <div class="settings-card">
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label" data-i18n-mode="text">Show Export Section</div>
-            <div class="setting-hint" data-i18n-mode="text">Show or hide the Export menu (TXT, CSV, HTML) in the panel.</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="set-show-export"/>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-
-      <div class="settings-card">
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label" data-i18n-mode="text">Default Output Folder</div>
-            <div class="setting-hint" data-i18n-mode="text">Where downloaded songs will be saved. You can type a path or browse.</div>
-          </div>
-          <div class="setting-path-row">
-            <input type="text" id="set-download-path" class="setting-input" placeholder="C:\Users\you\Music" autocomplete="off" spellcheck="false"/>
-            <button class="setting-browse-btn" id="set-browse-path" title="Browse…" data-i18n-mode="title">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-card">
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label" data-i18n-mode="text">Panel Mode</div>
-            <div class="setting-hint" data-i18n-mode="text">Choose how the extension panel opens: as a popup or in the sidebar.</div>
-          </div>
-          <select id="set-panel-mode" class="setting-select">
-            <option value="popup" data-i18n-mode="text">Popup</option>
-            <option value="sidebar" data-i18n-mode="text">Sidebar</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="settings-card">
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label" data-i18n-mode="text">Theme</div>
-            <div class="setting-hint" data-i18n-mode="text">Choose the appearance. System automatically follows your OS setting.</div>
-          </div>
-          <select id="set-theme" class="setting-select">
-            <option value="system" data-i18n-mode="text">System</option>
-            <option value="dark" data-i18n-mode="text">Dark</option>
-            <option value="light" data-i18n-mode="text">Light</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="settings-card oauth-card" id="oauth-card">
-        <div class="setting-row setting-row-topaligned oauth-card-row">
-          <div class="setting-info">
-            <div class="setting-label" data-i18n-mode="text">OAuth</div>
-            <div class="setting-hint" data-i18n-mode="text">Use cookies for age-restricted downloads. Google uses your signed-in browser profile. Anonymous captures cookies from your current YouTube tab.</div>
-          </div>
-          <div class="oauth-actions">
-            <button type="button" class="google-login-btn" id="oauth-google-btn">
-              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd"><path d="M20.16 12.193c0-.603-.054-1.182-.155-1.739H12v3.288h4.575a3.91 3.91 0 0 1-1.696 2.565v2.133h2.747c1.607-1.48 2.535-3.659 2.535-6.248z" fill="#4285f4"></path><path d="M12 20.5c2.295 0 4.219-.761 5.625-2.059l-2.747-2.133c-.761.51-1.735.811-2.878.811-2.214 0-4.088-1.495-4.756-3.504h-2.84v2.202A8.497 8.497 0 0 0 12 20.5z" fill="#34a853"></path><path d="M7.244 13.615A5.11 5.11 0 0 1 6.977 12a5.11 5.11 0 0 1 .267-1.615V8.183h-2.84C3.828 9.33 3.5 10.628 3.5 12s.328 2.67.904 3.817l2.84-2.202z" fill="#fbbc05"></path><path d="M12 6.881c1.248 0 2.368.429 3.249 1.271l2.438-2.438C16.215 4.342 14.291 3.5 12 3.5a8.497 8.497 0 0 0-7.596 4.683l2.84 2.202C7.912 8.376 9.786 6.881 12 6.881z" fill="#ea4335"></path></svg>
-              <span data-i18n-mode="text">Continue with Google</span>
-            </button>
-            <button type="button" class="action-btn" id="oauth-anonymous-btn" data-i18n-mode="text">Anonymous</button>
-          </div>
-        </div>
-        <div class="setting-hint" id="oauth-status" data-i18n-mode="text">No cookies captured yet.</div>
-        <div class="setting-label" data-i18n-mode="text">Cookies</div>
-        <textarea id="oauth-cookies-text" class="setting-input oauth-cookies-text" placeholder="YouTube cookies will appear here after capture or paste." spellcheck="false"></textarea>
-      </div>
-
+      <div id="output-common-settings"></div>
+      <div id="output-audio-settings" class="output-mode-panel active"></div>
+      <div id="output-video-settings" class="output-mode-panel"></div>
     </section>
 
     <!-- ═══════ SHORTCUTS ═══════ -->
@@ -211,8 +345,11 @@
       <p class="section-desc">Backup or restore your settings.</p>
 
       <div class="settings-card">
-        <div class="card-section-title">IMPORT SETTINGS</div>
-        <p class="card-section-hint">Load a settings file from your computer, drag & drop, or import from a URL.</p>
+        <div class="card-section-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          IMPORT SETTINGS
+        </div>
+        <p class="card-section-hint">Load a settings file from your computer, drag &amp; drop, or import from a URL.</p>
         <div class="drop-zone" id="import-drop-zone">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>Drop JSON file here, or</span>
@@ -222,7 +359,10 @@
       </div>
 
       <div class="settings-card">
-        <div class="card-section-title">EXPORT SETTINGS</div>
+        <div class="card-section-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          EXPORT SETTINGS
+        </div>
         <p class="card-section-hint">Save your current settings as a JSON file.</p>
         <button class="action-btn" id="export-settings-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -230,8 +370,11 @@
         </button>
       </div>
 
-      <div class="settings-card settings-card-danger settings-card-danger-row">
-        <div class="card-section-title">RESET SETTINGS</div>
+      <div class="settings-card settings-card-danger">
+        <div class="card-section-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          RESET SETTINGS
+        </div>
         <p class="card-section-hint">Restore all settings to their default values. This cannot be undone.</p>
         <button class="action-btn danger reset-defaults-btn" id="reset-settings-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
@@ -244,6 +387,8 @@
     <section class="settings-section" id="section-about">
       <h1 class="section-title">About</h1>
       <p class="section-desc"></p>
+
+      <div id="about-extra-settings"></div>
 
       <div class="settings-card about-card">
         <div class="about-icon">
@@ -275,7 +420,6 @@
 
   </main>
 
-  <!-- TOAST -->
   <div id="settings-toast"></div>
 </div>
 

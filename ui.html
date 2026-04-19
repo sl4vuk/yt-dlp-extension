@@ -20,6 +20,10 @@
           <button class="ib" id="btn-tab" title="Open in tab" data-i18n-mode="title">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/></svg>
           </button>
+          <button class="ib" id="btn-output-mode" title="Audio mode — click to switch to Video" data-i18n-mode="title">
+            <svg id="icon-output-audio" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <svg id="icon-output-video" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          </button>
           <button class="ib" id="btn-settings" title="Settings" data-i18n-mode="title">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
@@ -135,9 +139,21 @@
         <div class="st" data-i18n-mode="text">Download with yt-dlp</div>
         <div class="fmt-row">
           <span class="fmt-label" data-i18n-mode="text">Format</span>
-          <div class="tg">
-            <button class="to" data-fmt="fast" data-i18n-mode="text">Fast</button>
-            <button class="to on" data-fmt="mp3">mp3</button>
+          <div class="fmt-compact-wrap">
+            <div class="tg" id="fmt-main-btns">
+              <button class="to" data-fmt="fast" data-i18n-mode="text">Fast</button>
+              <button class="to on" data-fmt="mp3" id="btn-fmt-mp3">mp3
+                <svg class="fmt-arrow" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            </div>
+            <!-- expanded audio sub-formats -->
+            <div class="fmt-submenu" id="fmt-submenu" hidden>
+              <button class="fmt-sub-opt" data-fmt="mp3">MP3</button>
+              <button class="fmt-sub-opt" data-fmt="ogg">OGG</button>
+              <button class="fmt-sub-opt" data-fmt="wav">WAV</button>
+              <button class="fmt-sub-opt" data-fmt="m4a">M4A</button>
+              <!-- video formats added by JS when outputMode=video -->
+            </div>
           </div>
         </div>
 
@@ -184,9 +200,21 @@
     <section class="terminal-panel" id="terminal-panel">
       <div class="terminal-head-row">
         <div class="terminal-title" data-i18n-mode="text">Download terminal</div>
-        <div class="terminal-filter-actions" id="terminal-filter-actions" hidden>
-          <button class="terminal-link-action" id="terminal-retry-all" data-i18n-mode="text">Retry all</button>
-          <button class="terminal-link-action" id="terminal-login" data-i18n-mode="text" hidden>Login</button>
+        <div class="terminal-actions-group">
+          <div class="terminal-filter-actions" id="terminal-filter-actions" hidden>
+            <button class="terminal-link-action" id="terminal-retry-all" data-i18n-mode="text">Retry all</button>
+            <button class="terminal-link-action" id="terminal-login" data-i18n-mode="text" hidden>Login</button>
+          </div>
+          <div class="terminal-clear-wrap" id="terminal-clear-wrap">
+            <button class="terminal-clear-trigger" id="terminal-clear-trigger">
+              Clear
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="terminal-clear-menu" id="terminal-clear-menu">
+              <button class="terminal-clear-opt" id="clear-completed">Remove Completed</button>
+              <button class="terminal-clear-opt terminal-clear-opt-danger" id="clear-all">Remove All</button>
+            </div>
+          </div>
         </div>
       </div>
       <div id="progress-section" class="visible">

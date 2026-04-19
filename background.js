@@ -521,7 +521,7 @@ function handleNativeMessage(msg) {
   }
 }
 
-function downloadTrackNative({ url, videoId, title, format, outputPath, cookieMode = 'off', cookieText = '' }) {
+function downloadTrackNative({ url, videoId, title, format, outputPath, cookieMode = 'off', cookieText = '', settings = {} }) {
   return new Promise(resolve => {
     const port = getNativePort();
     if (!port) {
@@ -529,7 +529,48 @@ function downloadTrackNative({ url, videoId, title, format, outputPath, cookieMo
       return;
     }
     pendingDownloads.set(videoId, { resolve });
-    port.postMessage({ action: 'download', url, videoId, title, format, outputPath, cookieMode, cookieText, addMetadata: true });
+    port.postMessage({
+      action: 'download',
+      url, videoId, title, format, outputPath,
+      cookieMode, cookieText,
+      addMetadata: true,
+      // Performance
+      safeMode:         settings.safeDownloadMode !== false,
+      // Proxy
+      proxyType:        settings.proxyType || 'none',
+      proxyAddress:     settings.proxyAddress || '',
+      proxyPort:        settings.proxyPort || '',
+      proxyUsername:    settings.proxyUsername || '',
+      proxyPassword:    settings.proxyPassword || '',
+      // Skip rules
+      skipIfExists:     !!settings.outputSkipIfExists,
+      // Tags
+      tagsEnabled:      settings.tagsEnabled !== false,
+      tagYearMode:      settings.tagYearMode || 'dont-write',
+      tagAlbumArtist:   settings.tagAlbumArtist || '',
+      tagCommentMode:   settings.tagCommentMode || 'id-in-comment',
+      tagCustomComment: settings.tagCustomComment || '',
+      tagArtwork:       settings.tagArtwork || 'yes',
+      tagExtraction:    settings.tagExtractionMode || 'artist-title',
+      tagWriteExplicit: !!settings.tagWriteExplicit,
+      tagSearchDesc:    !!settings.tagSearchInDescription,
+      tagUseUploader:   settings.tagUseUploaderIfNoArtist !== false,
+      tagRemoveQuotes:  !!settings.tagRemoveQuotes,
+      tagRemoveEmoji:   !!settings.tagRemoveEmoji,
+      tagSaveThumbnail: !!settings.tagSaveThumbnail,
+      tagTrackPos:      !!settings.tagWriteTrackPosition,
+      tagPlaylistAlbum: !!settings.tagWritePlaylistAlbum,
+      // Output / filename
+      outputDelimiter:    settings.outputDelimiter || ' - ',
+      outputAddNumber:    !!settings.outputAddNumber,
+      outputRemoveEmoji:  !!settings.outputRemoveEmoji,
+      filenameTemplate:   format === 'mp4' || format === 'webm' || format === 'flv'
+                            ? (settings.videoFilenameTemplate || 'video-title')
+                            : (settings.audioFilenameTemplate || 'artist-title'),
+      // Audio quality
+      audioBitrate:     settings.audioBitrate || '192',
+      audioSampleRate:  settings.audioSampleRate || '44100',
+    });
     setTimeout(() => {
       if (pendingDownloads.has(videoId)) {
         pendingDownloads.delete(videoId);
@@ -608,6 +649,26 @@ async function captureYoutubeCookies() {
   return { ok: true, cookieText: lines.join('\n') };
 }
 
+// ── SETTINGS LOADER ───────────────────────────────────────────────
+const QUEUE_SETTING_KEYS = [
+  'simultaneousDownloads', 'downloadCookieMode', 'oauthCookiesText',
+  'proxyType', 'proxyAddress', 'proxyPort', 'proxyUsername', 'proxyPassword',
+  'audioFilenameTemplate', 'videoFilenameTemplate', 'outputDelimiter',
+  'outputAddNumber', 'outputRemoveEmoji', 'audioOutputFormat',
+  'audioBitrate', 'audioSampleRate', 'preferredVideoContainer',
+  'videoOriginalQuality', 'tagsEnabled', 'tagYearMode', 'tagAlbumArtist',
+  'tagCommentMode', 'tagCustomComment', 'tagArtwork', 'tagExtractionMode',
+  'tagWriteExplicit', 'tagSearchInDescription', 'tagUseUploaderIfNoArtist',
+  'tagRemoveQuotes', 'tagRemoveEmoji', 'tagSaveThumbnail',
+  'tagWriteTrackPosition', 'tagWritePlaylistAlbum', 'outputSkipIfExists',
+  'outputSkipIfPreviouslyDownloaded', 'safeDownloadMode', 'downloadQualityStrategy',
+  'selectedResolution', 'preferHdrVideo', 'preferAv1Codec', 'ignoreHighFpsVideos',
+];
+
+async function loadQueueSettings() {
+  return new Promise(r => chrome.storage.local.get(QUEUE_SETTING_KEYS, r));
+}
+
 // ── BACKGROUND DOWNLOAD QUEUE ─────────────────────────────────────
 
 async function processQueue() {
@@ -616,36 +677,65 @@ async function processQueue() {
   isDownloading = true;
   queueCancelled = false;
 
+  const settings = await loadQueueSettings();
+  const concurrency = Math.max(1, Math.min(Number(settings.simultaneousDownloads) || 1, 10));
+
   try {
-    while (currentIndex < downloadQueue.length) {
-      if (cancelRequested) {
-        queueCancelled = true;
-        break;
+    // Parallel pool: process `concurrency` items at a time
+    const active = new Set();
+    let nextIndex = 0;
+
+    const runNext = async () => {
+      while (nextIndex < downloadQueue.length && !cancelRequested) {
+        if (active.size >= concurrency) break;
+
+        const idx = nextIndex++;
+        const item = downloadQueue[idx];
+        currentIndex = idx;
+        currentTitle = item.title || '';
+
+        chrome.runtime.sendMessage({
+          type:    'QUEUE_UPDATE',
+          current: idx + 1,
+          total:   downloadQueue.length,
+          title:   item.title
+        }).catch(() => {});
+
+        const task = (async () => {
+          // Merge per-item settings with global settings
+          const enriched = {
+            ...item,
+            settings,
+            cookieMode: item.cookieMode || settings.downloadCookieMode || 'off',
+            cookieText: item.cookieText || settings.oauthCookiesText || '',
+          };
+          const result = await downloadTrackNative(enriched);
+          updateStatsFromResult(result, item);
+
+          chrome.runtime.sendMessage({
+            type:    'QUEUE_RESULT',
+            videoId: item.videoId,
+            title:   item.title,
+            result,
+            item,
+          }).catch(() => {});
+
+          active.delete(task);
+          await runNext();
+        })();
+
+        active.add(task);
       }
-      const item = downloadQueue[currentIndex];
+    };
 
-      chrome.runtime.sendMessage({
-        type:    'QUEUE_UPDATE',
-        current: currentIndex + 1,
-        total:   downloadQueue.length,
-        title:   item.title
-      }).catch(() => {});
+    await runNext();
 
-      currentTitle = item.title || '';
-
-      const result = await downloadTrackNative(item);
-      updateStatsFromResult(result, item);
-
-      chrome.runtime.sendMessage({
-        type:    'QUEUE_RESULT',
-        videoId: item.videoId,
-        title:   item.title,
-        result,
-        item,
-      }).catch(() => {});
-
-      currentIndex++;
+    // Wait for all active tasks to finish
+    while (active.size > 0) {
+      await Promise.race([...active]);
+      if (cancelRequested) queueCancelled = true;
     }
+
   } catch (error) {
     const item = currentIndex < downloadQueue.length ? downloadQueue[currentIndex] : null;
     chrome.runtime.sendMessage({
@@ -657,7 +747,6 @@ async function processQueue() {
     }).catch(() => {});
   } finally {
     chrome.runtime.sendMessage({ type: 'QUEUE_DONE', cancelled: queueCancelled }).catch(() => {});
-
     downloadQueue = [];
     currentIndex  = 0;
     currentTitle  = '';

@@ -18,7 +18,6 @@ const toastEl = $('settings-toast');
 const defFolderSel = $('set-default-folder');
 const autoSyncToggle = $('set-auto-sync');
 const showExportToggle = $('set-show-export');
-const themeSelect = $('set-theme');
 const interfaceLanguageTrigger = $('set-interface-language-trigger');
 const interfaceLanguageValue = $('set-interface-language-value');
 const interfaceLanguagePanel = $('set-interface-language-panel');
@@ -26,11 +25,20 @@ const interfaceLanguageSearch = $('set-interface-language-search');
 const interfaceLanguageOptions = $('set-interface-language-options');
 const downloadPathInput = $('set-download-path');
 const browsePathBtn = $('set-browse-path');
-const panelModeSelect = $('set-panel-mode');
 const oauthGoogleBtn = $('oauth-google-btn');
 const oauthAnonymousBtn = $('oauth-anonymous-btn');
 const oauthCookiesText = $('oauth-cookies-text');
 const oauthStatus = $('oauth-status');
+const generalExtraSettings = $('general-extra-settings');
+const downloadSettingsContainer = $('download-settings-container');
+const outputCommonSettings = $('output-common-settings');
+const outputAudioSettings = $('output-audio-settings');
+const outputVideoSettings = $('output-video-settings');
+const outputModeSwitch = $('output-mode-switch');
+const aboutExtraSettings = $('about-extra-settings');
+const settingsSearchInput = $('settings-search-input');
+const settingsSearchClear = $('settings-search-clear');
+const settingsSearchResults = $('settings-search-results');
 
 // Import/Export
 const importDropZone = $('import-drop-zone');
@@ -41,6 +49,19 @@ const resetSettingsBtn = $('reset-settings-btn');
 
 let toastTimer;
 let currentInterfaceLanguage = 'en';
+let settingsSearchIndex = [];
+let searchCategoryFilter = 'all';
+const dynamicInputTimers = new Map();
+
+// ── RADIO HELPERS (replaces select for theme / panel-mode) ───────
+function setRadioValue(name, value) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
+    r.checked = r.value === value;
+  });
+}
+function getRadioValue(name) {
+  return document.querySelector(`input[name="${name}"]:checked`)?.value ?? null;
+}
 
 function buildLanguageOptions(filter = '') {
   if (!interfaceLanguageOptions || !window.ExtensionI18n) return;
@@ -97,10 +118,7 @@ function sendRuntimeMessage(message) {
 // ── NAV ─────────────────────────────────────────────────────────
 navItems.forEach(item => {
   item.addEventListener('click', () => {
-    const sectionId = item.dataset.section;
-    navItems.forEach(n => n.classList.remove('active'));
-    item.classList.add('active');
-    sections.forEach(s => s.classList.toggle('active', s.id === `section-${sectionId}`));
+    activateSection(item.dataset.section);
   });
 });
 
@@ -149,9 +167,471 @@ const DEFAULTS = {
   clipboardUrls: '[]',
   downloadCookieMode: 'off',
   oauthCookiesText: '',
+  clipboardAutoAdd: true,
+  startDownloadAutomatically: false,
+  removeCompletedAutomatically: true,
+  simultaneousDownloads: 1,
+  globalBandwidthLimitEnabled: false,
+  globalBandwidthLimit: 500,
+  preventSleepWhileDownloading: true,
+  downloadQualityStrategy: 'highest',
+  selectedResolution: '4320p',
+  ignoreHighFpsVideos: false,
+  preferHdrVideo: false,
+  preferAv1Codec: false,
+  audioDownloadFolder: '',
+  videoDownloadFolder: '',
+  tempFolderMode: 'system',
+  tempFolderPath: '',
+  audioPlaylistSubfolder: false,
+  videoPlaylistSubfolder: false,
+  maxConnectionsPerVideo: 3,
+  safeDownloadMode: true,
+  proxyType: 'none',
+  proxyAddress: '',
+  proxyPort: '',
+  proxyUsername: '',
+  proxyPassword: '',
+  outputMode: 'audio',
+  outputAddNumber: false,
+  outputDelimiter: ' - ',
+  outputRemoveEmoji: false,
+  outputSkipIfExists: false,
+  outputSkipIfPreviouslyDownloaded: false,
+  audioFilenameTemplate: 'artist-title',
+  audioOutputFormat: 'mp3',
+  audioBitrate: '192',
+  audioSampleRate: '44100',
+  videoFilenameTemplate: 'video-title',
+  videoOriginalQuality: true,
+  preferredVideoContainer: 'mp4',
+  // Tags
+  tagsEnabled: true,
+  tagYearMode: 'dont-write',
+  tagAlbumArtist: '',
+  tagCommentMode: 'id-in-comment',
+  tagCustomComment: '',
+  tagArtwork: 'yes',
+  tagWriteExplicit: false,
+  tagExtractionMode: 'artist-title',
+  tagSearchInDescription: false,
+  tagUseUploaderIfNoArtist: true,
+  tagRemoveQuotes: false,
+  tagRemoveEmoji: false,
+  tagSaveThumbnail: false,
+  tagWriteTrackPosition: false,
+  tagWritePlaylistAlbum: false,
+  updateCheckMode: 'startup',
 };
 
-// ── LOAD SETTINGS ───────────────────────────────────────────────
+// ── SECTION ICONS (SVG strings for search results) ──────────────
+const SECTION_SVGS = {
+  general:         `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  download:        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  output:          `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  shortcuts:       `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h8M6 16h.01M18 16h.01M10 16h4"/></svg>`,
+  'import-export': `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+  about:           `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+};
+
+const AUDIO_TEMPLATE_OPTIONS = [
+  ['title', 'Title'],
+  ['artist-title', 'Artist - Title'],
+  ['title-artist', 'Title - Artist'],
+  ['date-artist-title', 'Upload date - Artist - Title'],
+  ['date-title', 'Upload date - Title'],
+  ['date-playlist-artist-title', 'Upload date - Playlist title - Artist - Title'],
+  ['bullet-title', '• Title'],
+];
+
+const VIDEO_TEMPLATE_OPTIONS = [
+  ['video-title', 'Video title'],
+  ['uploader-video-title', 'Video uploader - Video title'],
+  ['uploader-date-video-title', 'Video uploader - Upload date - Video title'],
+  ['date-video-title', 'Upload date - Video title'],
+  ['date-playlist-video-title', 'Upload date - Playlist title - Video title'],
+  ['date-uploader-video-title', 'Upload date - Video uploader - Video title'],
+];
+
+const BITRATE_OPTIONS = [['96','96 Kbps'],['128','128 Kbps'],['192','192 Kbps'],['224','224 Kbps'],['256','256 Kbps'],['320','320 Kbps']];
+const SAMPLE_RATE_OPTIONS = [['6000','6000 Hz'],['8000','8000 Hz'],['11025','11025 Hz'],['12000','12000 Hz'],['16000','16000 Hz'],['22050','22050 Hz'],['44100','44100 Hz'],['48000','48000 Hz']];
+
+const STATIC_SEARCH_ENTRIES = [
+  { key: 'set-interface-language-trigger', title: 'Interface Language', category: 'General', section: 'general' },
+  { key: 'set-default-folder', title: 'Default Bookmark Folder', category: 'General', section: 'general' },
+  { key: 'set-auto-sync', title: 'Auto Sync & Clean', category: 'General', section: 'general' },
+  { key: 'set-show-export', title: 'Show Export Section', category: 'General', section: 'general' },
+  { key: 'set-download-path', title: 'Default Output Folder', category: 'General', section: 'general' },
+  { key: 'theme-radio-group', title: 'Theme', category: 'General', section: 'general' },
+  { key: 'panel-mode-radio-group', title: 'Panel Mode', category: 'General', section: 'general' },
+  { key: 'oauth-google-btn', title: 'OAuth / Authentication', category: 'General', section: 'general' },
+  { key: 'export-settings-btn', title: 'Export settings', category: 'Import / Export', section: 'import-export' },
+  { key: 'reset-settings-btn', title: 'Reset settings', category: 'Import / Export', section: 'import-export' },
+];
+
+const GENERAL_EXTRA_DEFS = [
+  { key: 'clipboardAutoAdd', type: 'toggle', label: 'Add links from the clipboard automatically', hint: 'Keep watching the clipboard and add YouTube links without pasting manually.', category: 'General' },
+  { key: 'startDownloadAutomatically', type: 'toggle', label: 'Start download automatically', hint: 'Begin downloading immediately when a queue is ready.', category: 'General' },
+  { key: 'removeCompletedAutomatically', type: 'toggle', label: 'Remove completed automatically', hint: 'Clean finished items from the list when the download succeeds.', category: 'General' },
+];
+
+const DOWNLOAD_GROUPS = [
+  {
+    title: 'Performance',
+    hint: 'Simultaneous downloads, bandwidth cap, and sleep behavior.',
+    icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+    settings: [
+      { key: 'simultaneousDownloads', type: 'number', label: 'Simultaneous downloads', hint: 'How many downloads can run at the same time.', min: 1, max: 10, category: 'Download' },
+      { key: 'globalBandwidthLimitEnabled', type: 'toggle', label: 'Global bandwidth limit', hint: 'Enable a shared speed cap for all active downloads.', category: 'Download' },
+      { key: 'globalBandwidthLimit', type: 'number', label: 'Bandwidth limit (KB/s)', hint: 'Global speed cap in KB/s. Only applies when the limit is enabled.', min: 1, category: 'Download' },
+      { key: 'preventSleepWhileDownloading', type: 'toggle', label: 'Prevent sleep while downloading', hint: 'Keep the computer awake while there is active download work.', category: 'Download' },
+    ],
+  },
+  {
+    title: 'Video Quality',
+    hint: 'Resolution, codec, and frame rate preferences.',
+    icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+    settings: [
+      { key: 'downloadQualityStrategy', type: 'select', label: 'Quality selection', hint: 'Highest, selected resolution, or lowest available.', category: 'Download', options: [['highest','Highest available'],['selected','Selected resolution'],['lowest','Lowest available']] },
+      { key: 'selectedResolution', type: 'select', label: 'Max resolution', hint: 'Used when "Selected resolution" is chosen above.', category: 'Download', options: [['4320p','4320p (8K)'],['2160p','2160p (4K)'],['1440p','1440p'],['1080p','1080p'],['720p','720p'],['480p','480p']] },
+      { key: 'preferHdrVideo', type: 'toggle', label: 'Prefer HDR', hint: 'Prioritize HDR streams when available.', category: 'Download' },
+      { key: 'preferAv1Codec', type: 'toggle', label: 'Prefer AV1 codec', hint: 'Choose AV1 streams over older codecs when available.', category: 'Download' },
+      { key: 'ignoreHighFpsVideos', type: 'toggle', label: 'Skip 30+ fps streams', hint: 'Ignore high frame-rate variants during format selection.', category: 'Download' },
+    ],
+  },
+  {
+    title: 'Output Folders',
+    hint: 'Where audio and video files are saved.',
+    icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+    settings: [
+      { key: 'audioDownloadFolder', type: 'path', label: 'Audio output folder', hint: 'Audio downloads will be saved here.', category: 'Download' },
+      { key: 'videoDownloadFolder', type: 'path', label: 'Video output folder', hint: 'Video downloads will be saved here.', category: 'Download' },
+      { key: 'audioPlaylistSubfolder', type: 'toggle', label: 'Subfolder per playlist (audio)', hint: 'Create a subfolder named after the playlist for audio downloads.', category: 'Download' },
+      { key: 'videoPlaylistSubfolder', type: 'toggle', label: 'Subfolder per playlist (video)', hint: 'Create a subfolder named after the playlist for video downloads.', category: 'Download' },
+      { key: 'tempFolderMode', type: 'select', label: 'Temporary folder', hint: 'Where partial/temp files go during download.', category: 'Download', options: [['system','System temp folder'],['audio','Same as audio folder'],['custom','Custom path']] },
+      { key: 'tempFolderPath', type: 'path', label: 'Custom temp folder', hint: 'Used when "Custom path" is selected above.', category: 'Download' },
+    ],
+  },
+  {
+    title: 'Network & Proxy',
+    hint: 'Proxy server settings for routing download requests.',
+    icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    settings: [
+      { key: 'maxConnectionsPerVideo', type: 'number', label: 'Max connections per video', hint: 'Parallel connections for a single video download.', min: 1, max: 16, category: 'Download' },
+      { key: 'safeDownloadMode', type: 'toggle', label: 'Safe download mode', hint: 'More conservative behavior to reduce temporary blocks.', category: 'Download' },
+      { key: 'proxyType', type: 'select', label: 'Proxy type', hint: 'Route downloads through a proxy server.', category: 'Download', options: [['none','None'],['http','HTTP'],['https','HTTPS'],['socks5','SOCKS5']] },
+      { key: 'proxyAddress', type: 'text', label: 'Proxy address', hint: 'Hostname or IP of the proxy.', category: 'Download', placeholder: '127.0.0.1' },
+      { key: 'proxyPort', type: 'number', label: 'Proxy port', hint: 'Port number of the proxy.', category: 'Download', placeholder: '8080' },
+      { key: 'proxyUsername', type: 'text', label: 'Proxy username', hint: 'Leave blank if no authentication is required.', category: 'Download', placeholder: 'Username' },
+      { key: 'proxyPassword', type: 'password', label: 'Proxy password', hint: 'Leave blank if no authentication is required.', category: 'Download', placeholder: 'Password' },
+    ],
+  },
+  {
+    title: 'Tags',
+    hint: 'Metadata written to downloaded audio files. Can be fully disabled.',
+    icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+    settings: [
+      {
+        key: 'tagsEnabled', type: 'toggle',
+        label: 'Write tags to files', hint: 'Master switch — disable to skip all metadata writing.',
+        category: 'Download',
+      },
+      {
+        key: 'tagYearMode', type: 'visual-radio',
+        label: 'Year tag', hint: 'What to store in the Year metadata field.',
+        category: 'Download',
+        options: [
+          ['dont-write',   'None',        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`],
+          ['current-year', 'Current year',`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`],
+          ['upload-date',  'Upload date', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>`],
+        ],
+      },
+      {
+        key: 'tagCommentMode', type: 'visual-radio',
+        label: 'Comment field', hint: 'What to store in the comment / description tag.',
+        category: 'Download',
+        options: [
+          ['dont-write',   'None',       `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`],
+          ['id-in-comment','Video ID',   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`],
+          ['custom',       'Custom',     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>`],
+          ['description',  'Description',`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`],
+          ['video-link',   'Video URL',  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`],
+        ],
+      },
+      { key: 'tagCustomComment', type: 'text', label: 'Custom comment text', hint: 'Used when Comment field is "Custom".', category: 'Download', placeholder: 'Your custom text here' },
+      {
+        key: 'tagArtwork', type: 'visual-icon-radio',
+        label: 'Artwork', hint: 'How to embed the video thumbnail.',
+        category: 'Download',
+        options: [
+          ['no',              'None',          `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="3" x2="21" y2="21"/></svg>`],
+          ['yes',             'Original',      `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`],
+          ['cropped-square',  'Crop square',   `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="5" y1="3" x2="5" y2="5"/><line x1="19" y1="3" x2="19" y2="5"/><line x1="5" y1="19" x2="5" y2="21"/><line x1="19" y1="19" x2="19" y2="21"/></svg>`],
+          ['inscribed-square','Fit square',    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="5" y="5" width="14" height="14" rx="1" stroke-dasharray="2 2"/></svg>`],
+          ['cropped-480',     'Crop 480',      `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="14" height="14" rx="1"/><text x="12" y="13" text-anchor="middle" font-size="5" fill="currentColor" stroke="none">480</text></svg>`],
+          ['inscribed-480',   'Fit 480',       `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="5" y="5" width="14" height="14" rx="1" stroke-dasharray="2 2"/><text x="12" y="13" text-anchor="middle" font-size="4" fill="currentColor" stroke="none">480</text></svg>`],
+        ],
+      },
+      {
+        key: 'tagExtractionMode', type: 'visual-radio',
+        label: 'Tag extraction', hint: 'How to parse Artist and Title from the video title.',
+        category: 'Download',
+        options: [
+          ['artist-title', 'Artist — Title', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`],
+          ['title',        'Title only',     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="6" x2="3" y2="6"/><line x1="15" y1="12" x2="3" y2="12"/><line x1="17" y1="18" x2="3" y2="18"/></svg>`],
+          ['regex',        'Regex',          `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`],
+        ],
+      },
+      { key: 'tagAlbumArtist',           type: 'text',   label: 'Album artist', hint: 'Fixed album artist for all downloads. Blank = channel name.', category: 'Download', placeholder: 'e.g. Various Artists' },
+      { key: 'tagWriteExplicit',         type: 'toggle', label: 'Write Explicit tag (M4A only)', hint: 'Adds the explicit content flag to M4A files.', category: 'Download' },
+      { key: 'tagSearchInDescription',   type: 'toggle', label: 'Search tags in description', hint: 'Try to extract artist/title from the video description.', category: 'Download' },
+      { key: 'tagUseUploaderIfNoArtist', type: 'toggle', label: 'Use uploader if no artist', hint: 'Fall back to the channel name when no artist is found.', category: 'Download' },
+      { key: 'tagRemoveQuotes',          type: 'toggle', label: 'Remove quotes from tags', hint: 'Strip leading and trailing quote characters from tag values.', category: 'Download' },
+      { key: 'tagRemoveEmoji',           type: 'toggle', label: 'Remove emoji from tags', hint: 'Strip emoji from all tag fields.', category: 'Download' },
+      { key: 'tagSaveThumbnail',         type: 'toggle', label: 'Save thumbnail separately', hint: 'Downloads the video thumbnail as a separate image file.', category: 'Download' },
+      { key: 'tagWriteTrackPosition',    type: 'toggle', label: 'Write track position', hint: 'Stores the item index in the playlist as the track number tag.', category: 'Download' },
+      { key: 'tagWritePlaylistAlbum',    type: 'toggle', label: 'Playlist title as album', hint: 'Sets the Album field to the playlist name when downloading playlists.', category: 'Download' },
+    ],
+  },
+];
+
+const OUTPUT_COMMON_DEFS = [
+  { key: 'outputAddNumber', type: 'toggle', label: 'Add number to filename', hint: 'Prefix playlist item index to the filename when available.', category: 'Output' },
+  { key: 'outputDelimiter', type: 'text', label: 'Delimiter', hint: 'Characters used to separate parts of the filename.', category: 'Output', placeholder: ' - ' },
+  { key: 'outputRemoveEmoji', type: 'toggle', label: 'Remove emoji from filename', hint: 'Strip emoji and unsupported symbols from output names.', category: 'Output' },
+  { key: 'outputSkipIfExists', type: 'toggle', label: 'Skip if file already exists', hint: 'Avoid re-downloading when the output file is already present.', category: 'Output' },
+  { key: 'outputSkipIfPreviouslyDownloaded', type: 'toggle', label: 'Skip if previously downloaded', hint: 'Use download history to skip items already seen, even if file is missing.', category: 'Output' },
+];
+
+const OUTPUT_AUDIO_DEFS = [
+  { key: 'audioFilenameTemplate', type: 'select', label: 'Filename template', hint: 'Choose how audio files should be named.', category: 'Output', options: AUDIO_TEMPLATE_OPTIONS },
+  { key: 'audioOutputFormat', type: 'select', label: 'Output format', hint: 'Original M4A or convert to another audio format.', category: 'Output', options: [['original-m4a','Original M4A'],['mp3','MP3'],['ogg','OGG Vorbis'],['wav','WAV']] },
+  { key: 'audioBitrate', type: 'select', label: 'Bitrate', hint: 'Target audio bitrate for converted formats.', category: 'Output', options: BITRATE_OPTIONS },
+  { key: 'audioSampleRate', type: 'select', label: 'Sample rate', hint: 'Target sample rate for converted formats.', category: 'Output', options: SAMPLE_RATE_OPTIONS },
+];
+
+const OUTPUT_VIDEO_DEFS = [
+  { key: 'videoFilenameTemplate', type: 'select', label: 'Filename template', hint: 'Choose how video files should be named.', category: 'Output', options: VIDEO_TEMPLATE_OPTIONS },
+  { key: 'videoOriginalQuality', type: 'toggle', label: 'Original quality', hint: 'Keep the original stream quality without re-encoding.', category: 'Output' },
+  { key: 'preferredVideoContainer', type: 'select', label: 'Preferred container format', hint: 'Choose the output container format for video downloads.', category: 'Output', options: [['mp4','MP4'],['webm','WebM'],['flv','FLV']] },
+];
+
+const ABOUT_EXTRA_DEFS = [
+  { key: 'updateCheckMode', type: 'select', label: 'Check for updates', hint: 'Automatically check on startup, or only when you request it manually.', category: 'About', options: [['startup','On startup'],['manual','Manual only']] },
+];
+
+// ── ACCORDION GROUP ICONS ────────────────────────────────────────
+const ACCORDION_ICONS = {
+  'Performance':           `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+  'Video Quality':         `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  'Output Folders':        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+  'Network & Proxy':       `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  'Common filename rules': `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  'Audio':                 `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  'Video':                 `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
+  'Updates':               `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+  'Tags':                  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+};
+
+function escHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ── VISUAL RADIO RENDERER ────────────────────────────────────────
+function renderVisualRadio(def, section) {
+  const opts = def.options.map(([value, label, icon]) =>
+    `<button class="vr-opt" data-key="${def.key}" data-value="${escHtml(value)}" type="button">
+      ${icon ? icon : ''}
+      <span>${escHtml(label)}</span>
+    </button>`
+  ).join('');
+  return `<div class="settings-card setting-entry-card" id="setting-card-${def.key}" data-setting-key="${def.key}" data-setting-title="${escHtml(def.label)}" data-setting-category="${escHtml(def.category)}" data-setting-section="${section}">
+    <div class="vr-row">
+      <div class="setting-info">
+        <div class="setting-label">${escHtml(def.label)}</div>
+        <div class="setting-hint">${escHtml(def.hint)}</div>
+      </div>
+    </div>
+    <div class="vr-group" data-vr-key="${def.key}">${opts}</div>
+  </div>`;
+}
+
+// ── VISUAL ICON RADIO (large visual cards, e.g. artwork) ─────────
+function renderVisualIconRadio(def, section) {
+  const opts = def.options.map(([value, label, icon, preview]) =>
+    `<button class="vr-icon-opt" data-key="${def.key}" data-value="${escHtml(value)}" type="button" title="${escHtml(label)}">
+      ${preview || icon || ''}
+      <span>${escHtml(label)}</span>
+    </button>`
+  ).join('');
+  return `<div class="settings-card setting-entry-card" id="setting-card-${def.key}" data-setting-key="${def.key}" data-setting-title="${escHtml(def.label)}" data-setting-category="${escHtml(def.category)}" data-setting-section="${section}">
+    <div class="setting-info" style="margin-bottom:10px">
+      <div class="setting-label">${escHtml(def.label)}</div>
+      <div class="setting-hint">${escHtml(def.hint)}</div>
+    </div>
+    <div class="vr-icon-group" data-vr-key="${def.key}">${opts}</div>
+  </div>`;
+}
+
+function renderToggle(def, section) {
+  return `<div class="settings-card setting-entry-card" id="setting-card-${def.key}" data-setting-key="${def.key}" data-setting-title="${escHtml(def.label)}" data-setting-category="${escHtml(def.category)}" data-setting-section="${section}"><div class="setting-row"><div class="setting-info"><div class="setting-label">${escHtml(def.label)}</div><div class="setting-hint">${escHtml(def.hint)}</div></div><label class="toggle-switch"><input type="checkbox" id="${def.key}" data-dynamic-key="${def.key}" data-dynamic-type="toggle"/><span class="toggle-slider"></span></label></div></div>`;
+}
+
+function renderSelect(def, section) {
+  return `<div class="settings-card setting-entry-card" id="setting-card-${def.key}" data-setting-key="${def.key}" data-setting-title="${escHtml(def.label)}" data-setting-category="${escHtml(def.category)}" data-setting-section="${section}"><div class="setting-row"><div class="setting-info"><div class="setting-label">${escHtml(def.label)}</div><div class="setting-hint">${escHtml(def.hint)}</div></div><select id="${def.key}" class="setting-select" data-dynamic-key="${def.key}" data-dynamic-type="select">${def.options.map(([value,label]) => `<option value="${escHtml(value)}">${escHtml(label)}</option>`).join('')}</select></div></div>`;
+}
+
+function renderInput(def, section) {
+  const suffix = def.suffix ? `<span class="setting-inline-suffix">${escHtml(def.suffix)}</span>` : '';
+  return `<div class="settings-card setting-entry-card" id="setting-card-${def.key}" data-setting-key="${def.key}" data-setting-title="${escHtml(def.label)}" data-setting-category="${escHtml(def.category)}" data-setting-section="${section}"><div class="setting-row"><div class="setting-info"><div class="setting-label">${escHtml(def.label)}</div><div class="setting-hint">${escHtml(def.hint)}</div></div><div class="setting-inline-control"><input id="${def.key}" class="setting-input" data-dynamic-key="${def.key}" data-dynamic-type="${def.type}" type="${def.type === 'password' ? 'password' : (def.type === 'number' ? 'number' : 'text')}" ${def.min != null ? `min="${def.min}"` : ''} ${def.max != null ? `max="${def.max}"` : ''} placeholder="${escHtml(def.placeholder || '')}"/>${suffix}</div></div></div>`;
+}
+
+function renderPath(def, section) {
+  return `<div class="settings-card setting-entry-card" id="setting-card-${def.key}" data-setting-key="${def.key}" data-setting-title="${escHtml(def.label)}" data-setting-category="${escHtml(def.category)}" data-setting-section="${section}"><div class="setting-row setting-row-topaligned"><div class="setting-info"><div class="setting-label">${escHtml(def.label)}</div><div class="setting-hint">${escHtml(def.hint)}</div></div><div class="setting-path-row dynamic-path-row"><input id="${def.key}" class="setting-input" data-dynamic-key="${def.key}" data-dynamic-type="path" type="text" placeholder="C:\\Users\\you\\Downloads" autocomplete="off" spellcheck="false"/><button class="setting-browse-btn" type="button" data-browse-key="${def.key}" title="Browse…"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button></div></div></div>`;
+}
+
+function renderSetting(def, section) {
+  if (def.type === 'toggle') return renderToggle(def, section);
+  if (def.type === 'select') return renderSelect(def, section);
+  if (def.type === 'path') return renderPath(def, section);
+  if (def.type === 'visual-radio') return renderVisualRadio(def, section);
+  if (def.type === 'visual-icon-radio') return renderVisualIconRadio(def, section);
+  return renderInput(def, section);
+}
+
+// Accordion-based group renderer with icons
+function renderGroup(title, hint, defs, section) {
+  const icon = ACCORDION_ICONS[title] || '';
+  const arrowSvg = `<svg class="accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
+  return `<details class="settings-accordion" open>
+    <summary class="accordion-summary">
+      ${icon}
+      <div class="accordion-info">
+        <span class="accordion-title">${escHtml(title)}</span>
+        <span class="accordion-hint">${escHtml(hint)}</span>
+      </div>
+      ${arrowSvg}
+    </summary>
+    <div class="accordion-body">
+      ${defs.map(def => renderSetting(def, section)).join('')}
+    </div>
+  </details>`;
+}
+
+function renderGeneratedSettings() {
+  generalExtraSettings.innerHTML = GENERAL_EXTRA_DEFS.map(def => renderSetting(def, 'general')).join('');
+  downloadSettingsContainer.innerHTML = DOWNLOAD_GROUPS.map(group =>
+    renderGroup(group.title, group.hint, group.settings, 'download')
+  ).join('');
+  outputCommonSettings.innerHTML = renderGroup('Common filename rules', 'Naming and skip rules that apply to both audio and video.', OUTPUT_COMMON_DEFS, 'output');
+  outputAudioSettings.innerHTML = renderGroup('Audio', 'Audio naming, format, bitrate, and sample rate.', OUTPUT_AUDIO_DEFS, 'output');
+  outputVideoSettings.innerHTML = renderGroup('Video', 'Video naming, quality, and container format.', OUTPUT_VIDEO_DEFS, 'output');
+  aboutExtraSettings.innerHTML = `${renderGroup('Updates', 'Control how update checks are performed.', ABOUT_EXTRA_DEFS, 'about')}<div class="settings-card update-status-card"><div class="setting-row"><div class="setting-info"><div class="setting-label">Current version</div><div class="setting-hint">You are on the latest version (3.9.19).</div></div><button class="action-btn" type="button" id="check-updates-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Check again</button></div></div>`;
+  buildSettingsSearchIndex();
+}
+
+function buildSettingsSearchIndex() {
+  const dynamicEntries = Array.from(document.querySelectorAll('.setting-entry-card')).map(card => ({
+    key: card.dataset.settingKey,
+    title: card.dataset.settingTitle,
+    category: card.dataset.settingCategory,
+    section: card.dataset.settingSection,
+  }));
+  settingsSearchIndex = [...STATIC_SEARCH_ENTRIES, ...dynamicEntries].filter(Boolean);
+}
+
+function activateSection(sectionId) {
+  navItems.forEach(item => item.classList.toggle('active', item.dataset.section === sectionId));
+  sections.forEach(section => section.classList.toggle('active', section.id === `section-${sectionId}`));
+}
+
+function applyVisualRadios(saved) {
+  document.querySelectorAll('.vr-opt, .vr-icon-opt').forEach(btn => {
+    const key = btn.dataset.key;
+    const val = btn.dataset.value;
+    if (!key) return;
+    const savedVal = String(saved[key] ?? DEFAULTS[key] ?? '');
+    btn.classList.toggle('active', val === savedVal);
+  });
+}
+
+function applyDynamicSettings(saved) {
+  const allKeys = Object.keys(DEFAULTS);
+  allKeys.forEach(key => {
+    const el = document.getElementById(key);
+    if (!el) return;
+    const val = saved[key] ?? DEFAULTS[key];
+    if (el.type === 'checkbox') el.checked = !!val;
+    else el.value = val;
+  });
+  applyVisualRadios(saved);
+  document.querySelectorAll('.output-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.outputMode === (saved.outputMode || DEFAULTS.outputMode)));
+  outputAudioSettings.classList.toggle('active', (saved.outputMode || DEFAULTS.outputMode) === 'audio');
+  outputVideoSettings.classList.toggle('active', (saved.outputMode || DEFAULTS.outputMode) === 'video');
+}
+
+function activateSection(sectionId) {
+  navItems.forEach(item => item.classList.toggle('active', item.dataset.section === sectionId));
+  sections.forEach(section => section.classList.toggle('active', section.id === `section-${sectionId}`));
+}
+
+const SEARCH_CATEGORIES = ['All', 'General', 'Download', 'Output', 'Shortcuts', 'Import / Export', 'About'];
+
+function renderSearchCategoryFilter() {
+  const wrap = $('search-cat-filter');
+  if (!wrap) return;
+  wrap.innerHTML = SEARCH_CATEGORIES.map(cat => {
+    const key = cat.toLowerCase() === 'all' ? 'all' : cat;
+    return `<button class="cat-btn${searchCategoryFilter === key ? ' active' : ''}" data-cat="${escHtml(key)}">${escHtml(cat)}</button>`;
+  }).join('');
+  wrap.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      searchCategoryFilter = btn.dataset.cat;
+      renderSearchCategoryFilter();
+      renderSearchResults(settingsSearchInput?.value || '');
+    });
+  });
+}
+
+function renderSearchResults(query = '') {
+  const q = query.trim().toLowerCase();
+  settingsSearchClear.hidden = !q;
+  if (!q) {
+    settingsSearchResults.innerHTML = '<div class="search-empty-state">Start typing to search settings by name.</div>';
+    return;
+  }
+
+  let results = settingsSearchIndex.filter(item =>
+    item.title.toLowerCase().includes(q) || item.category.toLowerCase().includes(q)
+  );
+
+  // Apply category filter
+  if (searchCategoryFilter !== 'all') {
+    results = results.filter(item => item.category === searchCategoryFilter);
+  }
+
+  if (!results.length) {
+    settingsSearchResults.innerHTML = '<div class="search-empty-state">No settings matched your search.</div>';
+    return;
+  }
+
+  settingsSearchResults.innerHTML = results.map(item => {
+    const sectionIcon = SECTION_SVGS[item.section] || SECTION_SVGS.general;
+    const subIcon = item.subIcon || '';
+    return `<button type="button" class="search-result-item" data-search-target="${item.key}" data-search-section="${item.section}">
+      <span class="search-result-icon">${sectionIcon}</span>
+      <span class="search-result-copy">
+        <span class="search-result-title">${escHtml(item.title)}</span>
+        <span class="search-result-category">${subIcon ? `<span class="search-result-sub-icon">${subIcon}</span>` : ''}${escHtml(item.category)}</span>
+      </span>
+    </button>`;
+  }).join('');
+}
 async function loadSettings() {
   const keys = Object.keys(DEFAULTS);
   const saved = await store.get(keys);
@@ -165,15 +645,16 @@ async function loadSettings() {
 
   if (saved.defaultFolder) defFolderSel.value = saved.defaultFolder;
   autoSyncToggle.checked = !!saved.autoSync;
-  // showExport default is false
   showExportToggle.checked = saved.showExport === true;
 
-  if (saved.downloadPath) downloadPathInput.value = saved.downloadPath;
-  if (saved.panelMode) panelModeSelect.value = saved.panelMode;
+  if (downloadPathInput && saved.downloadPath) downloadPathInput.value = saved.downloadPath;
 
-  // Theme selector
+  // Panel mode — radio buttons
+  setRadioValue('set-panel-mode', saved.panelMode || DEFAULTS.panelMode);
+
+  // Theme — radio buttons
   const themeVal = saved.theme || 'system';
-  if (themeSelect) themeSelect.value = themeVal;
+  setRadioValue('set-theme', themeVal);
   applyTheme(themeVal);
 
   currentInterfaceLanguage = saved.interfaceLanguage || 'en';
@@ -182,6 +663,15 @@ async function loadSettings() {
   if (oauthCookiesText) oauthCookiesText.value = saved.oauthCookiesText || '';
   setOAuthStatus(saved.oauthCookiesText ? 'Cookies available for restricted downloads.' : 'No cookies captured yet.');
 
+  if (!saved.audioDownloadFolder && saved.downloadPath) saved.audioDownloadFolder = saved.downloadPath;
+  if (!saved.audioOutputFormat && saved.format) {
+    saved.audioOutputFormat = (saved.format === 'm4a' || saved.format === 'fast') ? 'original-m4a' : saved.format;
+  }
+
+  applyDynamicSettings(saved);
+  renderSearchCategoryFilter();
+  renderSearchResults('');
+
   if (window.ExtensionI18n) {
     await window.ExtensionI18n.applyPageTranslations(document, currentInterfaceLanguage);
   }
@@ -189,7 +679,10 @@ async function loadSettings() {
 
 // ── AUTO-SAVE — instant on every change ─────────────────────────
 async function save(key, val) {
-  await store.set({ [key]: val });
+  const payload = { [key]: val };
+  if (key === 'audioDownloadFolder') payload.downloadPath = val;
+  if (key === 'audioOutputFormat') payload.format = val === 'original-m4a' ? 'm4a' : val;
+  await store.set(payload);
   toast('✓ Saved');
 }
 
@@ -198,15 +691,27 @@ function initBindings() {
   autoSyncToggle.addEventListener('change', () => save('autoSync', autoSyncToggle.checked));
   showExportToggle.addEventListener('change', () => save('showExport', showExportToggle.checked));
 
-  // Theme dropdown
-  if (themeSelect) {
-    themeSelect.addEventListener('change', () => {
-      const t = themeSelect.value;
-      store.set({ theme: t });
-      applyTheme(t);
-      toast('✓ Theme: ' + t);
+  // Theme — radio buttons
+  document.querySelectorAll('input[name="set-theme"]').forEach(r => {
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      store.set({ theme: r.value });
+      applyTheme(r.value);
+      toast('✓ Theme: ' + r.value);
     });
-  }
+  });
+
+  // Panel mode — radio buttons
+  document.querySelectorAll('input[name="set-panel-mode"]').forEach(r => {
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      const mode = r.value;
+      store.set({ panelMode: mode });
+      sendRuntimeMessage({ type: 'SET_PANEL_MODE', mode }).then(res => {
+        toast(res?.ok === false ? (res.error || 'Panel mode update failed') : '✓ Panel mode: ' + mode);
+      });
+    });
+  });
 
   if (interfaceLanguageTrigger) {
     interfaceLanguageTrigger.addEventListener('click', () => {
@@ -238,40 +743,34 @@ function initBindings() {
     closeLanguagePanel();
   });
 
-  // Download path with debounce
-  let pathTimer;
-  downloadPathInput.addEventListener('input', () => {
-    clearTimeout(pathTimer);
-    pathTimer = setTimeout(() => save('downloadPath', downloadPathInput.value.trim()), 500);
-  });
-  downloadPathInput.addEventListener('change', () => save('downloadPath', downloadPathInput.value.trim()));
-
-  // Panel mode — also inform background
-  panelModeSelect.addEventListener('change', () => {
-    const mode = panelModeSelect.value;
-    store.set({ panelMode: mode });
-    sendRuntimeMessage({ type: 'SET_PANEL_MODE', mode }).then(res => {
-      toast(res?.ok === false ? (res.error || 'Panel mode update failed') : '✓ Panel mode: ' + mode);
+  // Download path (only if element exists in DOM)
+  if (downloadPathInput) {
+    let pathTimer;
+    downloadPathInput.addEventListener('input', () => {
+      clearTimeout(pathTimer);
+      pathTimer = setTimeout(() => save('downloadPath', downloadPathInput.value.trim()), 500);
     });
-  });
+    downloadPathInput.addEventListener('change', () => save('downloadPath', downloadPathInput.value.trim()));
+  }
 
-  // Browse path
-  browsePathBtn.addEventListener('click', async () => {
-    try {
-      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-      const name = handle.name;
-      const res = await sendRuntimeMessage({ type: 'RESOLVE_PATH', folderName: name });
-      if (res?.path) {
-        downloadPathInput.value = res.path;
-        await store.set({ downloadPath: res.path });
-        toast('✓ ' + res.path);
-      } else {
-        downloadPathInput.value = name;
-        await store.set({ downloadPath: name });
-        toast(`Folder "${name}" selected`);
-      }
-    } catch {}
-  });
+  if (browsePathBtn) {
+    browsePathBtn.addEventListener('click', async () => {
+      try {
+        const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        const name = handle.name;
+        const res = await sendRuntimeMessage({ type: 'RESOLVE_PATH', folderName: name });
+        if (res?.path) {
+          if (downloadPathInput) downloadPathInput.value = res.path;
+          await store.set({ downloadPath: res.path });
+          toast('✓ ' + res.path);
+        } else {
+          if (downloadPathInput) downloadPathInput.value = name;
+          await store.set({ downloadPath: name });
+          toast(`Folder "${name}" selected`);
+        }
+      } catch {}
+    });
+  }
 
   oauthGoogleBtn?.addEventListener('click', async () => {
     await store.set({ downloadCookieMode: 'browser' });
@@ -298,6 +797,88 @@ function initBindings() {
     store.set({ oauthCookiesText: value, downloadCookieMode: value ? 'manual' : 'off' });
     setOAuthStatus(value ? 'Manual cookies saved for restricted downloads.' : 'No cookies captured yet.');
   });
+
+  document.addEventListener('change', event => {
+    const target = event.target.closest('[data-dynamic-key]');
+    if (!target) return;
+    const key = target.dataset.dynamicKey;
+    const value = target.type === 'checkbox' ? target.checked : target.value;
+    save(key, value);
+  });
+
+  document.addEventListener('input', event => {
+    const target = event.target.closest('[data-dynamic-key]');
+    if (!target) return;
+    if (!['text', 'number', 'password'].includes(target.dataset.dynamicType) && target.dataset.dynamicType !== 'path') return;
+    clearTimeout(dynamicInputTimers.get(target.dataset.dynamicKey));
+    const timer = setTimeout(() => save(target.dataset.dynamicKey, target.value), 350);
+    dynamicInputTimers.set(target.dataset.dynamicKey, timer);
+  });
+
+  document.addEventListener('click', async event => {
+    const browseBtn = event.target.closest('[data-browse-key]');
+    if (browseBtn) {
+      try {
+        const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        const res = await sendRuntimeMessage({ type: 'RESOLVE_PATH', folderName: handle.name });
+        const path = res?.path || handle.name;
+        const input = document.getElementById(browseBtn.dataset.browseKey);
+        if (input) input.value = path;
+        await save(browseBtn.dataset.browseKey, path);
+      } catch {}
+      return;
+    }
+
+    const resultBtn = event.target.closest('[data-search-target]');
+    if (resultBtn) {
+      const section = resultBtn.dataset.searchSection;
+      const key = resultBtn.dataset.searchTarget;
+      activateSection(section);
+      const targetCard = document.getElementById(`setting-card-${key}`) || document.getElementById(key)?.closest('.settings-card');
+      // Open any parent <details> accordions so the element is visible
+      let parent = targetCard?.parentElement?.closest('details');
+      while (parent) {
+        parent.open = true;
+        parent = parent.parentElement?.closest('details');
+      }
+      targetCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const control = document.getElementById(key);
+      setTimeout(() => control?.focus(), 120);
+      return;
+    }
+
+    const outputBtn = event.target.closest('.output-mode-btn');
+    if (outputBtn) {
+      const mode = outputBtn.dataset.outputMode;
+      outputModeSwitch.querySelectorAll('.output-mode-btn').forEach(btn => btn.classList.toggle('active', btn === outputBtn));
+      outputAudioSettings.classList.toggle('active', mode === 'audio');
+      outputVideoSettings.classList.toggle('active', mode === 'video');
+      save('outputMode', mode);
+      return;
+    }
+
+    if (event.target.closest('#check-updates-btn')) {
+      toast('You have the latest version (3.9.19)');
+    }
+  });
+
+  // Visual radio click handler
+  document.addEventListener('click', event => {
+    const vrBtn = event.target.closest('.vr-opt, .vr-icon-opt');
+    if (vrBtn && vrBtn.dataset.key) {
+      const key = vrBtn.dataset.key;
+      const value = vrBtn.dataset.value;
+      document.querySelectorAll(`.vr-opt[data-key="${key}"], .vr-icon-opt[data-key="${key}"]`).forEach(b => b.classList.remove('active'));
+      vrBtn.classList.add('active');
+      save(key, value);
+      return;
+    }
+  });
+  settingsSearchClear?.addEventListener('click', () => {
+    settingsSearchInput.value = '';
+    renderSearchResults('');
+    settingsSearchInput.focus();
+  });
 }
 
 // ── LISTEN FOR EXTERNAL STORAGE CHANGES (real-time sync) ────────
@@ -305,7 +886,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes.theme) {
     applyTheme(changes.theme.newValue);
-    if (themeSelect) themeSelect.value = changes.theme.newValue || 'system';
+    setRadioValue('set-theme', changes.theme.newValue || 'system');
   }
   if (changes.interfaceLanguage) {
     currentInterfaceLanguage = changes.interfaceLanguage.newValue || 'en';
@@ -313,7 +894,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes.interfaceLanguage && window.ExtensionI18n)
     window.ExtensionI18n.applyPageTranslations(document, changes.interfaceLanguage.newValue || 'en');
-  if (changes.panelMode && panelModeSelect) panelModeSelect.value = changes.panelMode.newValue;
+  if (changes.panelMode) {
+    setRadioValue('set-panel-mode', changes.panelMode.newValue || 'popup');
+  }
   if (changes.downloadPath && downloadPathInput)
     downloadPathInput.value = changes.downloadPath.newValue || '';
   if (changes.autoSync && autoSyncToggle)
@@ -326,6 +909,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     oauthCookiesText.value = changes.oauthCookiesText.newValue || '';
     setOAuthStatus(oauthCookiesText.value.trim() ? 'Manual cookies saved for restricted downloads.' : 'No cookies captured yet.');
   }
+  store.get(Object.keys(DEFAULTS)).then(applyDynamicSettings);
 });
 
 function openExtensionShortcutsPage() {
@@ -392,6 +976,7 @@ resetSettingsBtn.addEventListener('click', async () => {
 
 // ── INIT ────────────────────────────────────────────────────────
 async function init() {
+  renderGeneratedSettings();
   await loadSettings();
   initBindings();
 }

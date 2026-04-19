@@ -234,14 +234,71 @@ def has_ffmpeg():
     return True
 
 
+def build_output_template(folder, filename_template, delimiter, add_number, remove_emoji, title=None):
+    """Build yt-dlp output template string from settings."""
+    TEMPLATES = {
+        'title':                           '%(title)s [%(id)s].%(ext)s',
+        'artist-title':                    '%(artist)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'title-artist':                    '%(title)s%(delimiter)s%(artist)s [%(id)s].%(ext)s',
+        'date-artist-title':               '%(upload_date)s%(delimiter)s%(artist)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'date-title':                      '%(upload_date)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'date-playlist-artist-title':      '%(upload_date)s%(delimiter)s%(playlist_title)s%(delimiter)s%(artist)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'bullet-title':                    '• %(title)s [%(id)s].%(ext)s',
+        'video-title':                     '%(title)s [%(id)s].%(ext)s',
+        'uploader-video-title':            '%(uploader)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'uploader-date-video-title':       '%(uploader)s%(delimiter)s%(upload_date)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'date-video-title':                '%(upload_date)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'date-playlist-video-title':       '%(upload_date)s%(delimiter)s%(playlist_title)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+        'date-uploader-video-title':       '%(upload_date)s%(delimiter)s%(uploader)s%(delimiter)s%(title)s [%(id)s].%(ext)s',
+    }
+    tpl = TEMPLATES.get(filename_template, '%(title)s [%(id)s].%(ext)s')
+    # Substitute delimiter placeholder
+    tpl = tpl.replace('%(delimiter)s', re.escape(delimiter or ' - ').replace('\\', ''))
+    if add_number:
+        tpl = '%(playlist_index)s. ' + tpl
+    return os.path.join(folder, tpl)
+
+
 def download(msg):
-    url = msg.get("url", "")
-    video_id = msg.get("videoId", "")
-    title = msg.get("title", video_id)
-    fmt = msg.get("format", "fast")
-    out_path = os.path.expanduser(msg.get("outputPath", os.path.expanduser("~")))
+    url         = msg.get("url", "")
+    video_id    = msg.get("videoId", "")
+    title       = msg.get("title", video_id)
+    fmt         = msg.get("format", "fast")
+    out_path    = os.path.expanduser(msg.get("outputPath", os.path.expanduser("~")))
     cookie_mode = msg.get("cookieMode", "off")
     cookie_text = msg.get("cookieText", "")
+
+    # ── Settings from extension ──────────────────────────────────
+    safe_mode        = msg.get("safeMode", True)
+    proxy_type       = msg.get("proxyType", "none")
+    proxy_address    = msg.get("proxyAddress", "")
+    proxy_port       = msg.get("proxyPort", "")
+    proxy_user       = msg.get("proxyUsername", "")
+    proxy_pass       = msg.get("proxyPassword", "")
+    skip_if_exists   = msg.get("skipIfExists", False)
+    # Tags
+    tags_enabled     = msg.get("tagsEnabled", True)
+    tag_year_mode    = msg.get("tagYearMode", "dont-write")
+    tag_album_artist = msg.get("tagAlbumArtist", "")
+    tag_comment_mode = msg.get("tagCommentMode", "id-in-comment")
+    tag_custom_cmt   = msg.get("tagCustomComment", "")
+    tag_artwork      = msg.get("tagArtwork", "yes")
+    tag_extraction   = msg.get("tagExtraction", "artist-title")
+    tag_write_explicit = msg.get("tagWriteExplicit", False)
+    tag_search_desc  = msg.get("tagSearchDesc", False)
+    tag_use_uploader = msg.get("tagUseUploader", True)
+    tag_remove_quotes= msg.get("tagRemoveQuotes", False)
+    tag_remove_emoji = msg.get("tagRemoveEmoji", False)
+    tag_save_thumb   = msg.get("tagSaveThumbnail", False)
+    tag_track_pos    = msg.get("tagTrackPos", False)
+    tag_playlist_album = msg.get("tagPlaylistAlbum", False)
+    # Output / filename
+    delimiter        = msg.get("outputDelimiter", " - ")
+    add_number       = msg.get("outputAddNumber", False)
+    remove_emoji_fn  = msg.get("outputRemoveEmoji", False)
+    filename_tpl     = msg.get("filenameTemplate", "artist-title")
+    audio_bitrate    = msg.get("audioBitrate", "192")
+    audio_samplerate = msg.get("audioSampleRate", "44100")
 
     os.makedirs(out_path, exist_ok=True)
 
@@ -249,27 +306,143 @@ def download(msg):
         send_message({"type": "skipped", "videoId": video_id})
         return
 
-    output_template = os.path.join(out_path, "%(title)s [%(id)s].%(ext)s")
     ffmpeg_ok = has_ffmpeg()
 
+    output_template = build_output_template(
+        out_path, filename_tpl, delimiter, add_number, remove_emoji_fn
+    )
+
     cmd = [
-        sys.executable,
-        "-m",
-        "yt_dlp",
+        sys.executable, "-m", "yt_dlp",
         "--no-playlist",
         "--newline",
         "--progress",
-        "--output",
-        output_template,
+        "--output", output_template,
     ]
 
-    if fmt == "mp3" and ffmpeg_ok:
-        cmd += ["--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"]
-    elif fmt == "fast":
-        cmd += ["--format", "bestaudio/best"]
+    # ── Skip if already downloaded ───────────────────────────────
+    if skip_if_exists:
+        cmd.append("--no-overwrites")
+
+    # ── Proxy ────────────────────────────────────────────────────
+    if proxy_type and proxy_type != "none" and proxy_address:
+        port_part = f":{proxy_port}" if proxy_port else ""
+        auth_part = ""
+        if proxy_user:
+            auth_part = f"{proxy_user}:{proxy_pass}@" if proxy_pass else f"{proxy_user}@"
+        proxy_url = f"{proxy_type}://{auth_part}{proxy_address}{port_part}"
+        cmd += ["--proxy", proxy_url]
+
+    # ── Safe mode ────────────────────────────────────────────────
+    if safe_mode:
+        cmd += ["--sleep-interval", "1", "--max-sleep-interval", "5"]
+
+    # ── Format / conversion ──────────────────────────────────────
+    if fmt == "mp3":
+        if ffmpeg_ok:
+            cmd += ["--extract-audio", "--audio-format", "mp3",
+                    "--audio-quality", f"{audio_bitrate}k",
+                    "--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+        else:
+            cmd += ["--format", "bestaudio/best"]
+    elif fmt == "ogg":
+        if ffmpeg_ok:
+            cmd += ["--extract-audio", "--audio-format", "vorbis",
+                    "--audio-quality", "5",
+                    "--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+        else:
+            cmd += ["--format", "bestaudio/best"]
+    elif fmt == "wav":
+        if ffmpeg_ok:
+            cmd += ["--extract-audio", "--audio-format", "wav",
+                    "--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+        else:
+            cmd += ["--format", "bestaudio/best"]
+    elif fmt in ("m4a", "original-m4a"):
+        cmd += ["--format", "bestaudio[ext=m4a]/bestaudio"]
+    elif fmt == "mp4":
+        cmd += ["--format", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"]
+    elif fmt == "webm":
+        cmd += ["--format", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best"]
+    elif fmt == "flv":
+        cmd += ["--format", "bestvideo[ext=flv]+bestaudio/best"]
     else:
         cmd += ["--format", "bestaudio/best"]
 
+    # ── Tags / Metadata ──────────────────────────────────────────
+    if tags_enabled:
+        cmd.append("--add-metadata")
+        cmd.append("--embed-metadata")
+
+        # Artwork
+        if tag_artwork != "no" and ffmpeg_ok:
+            cmd.append("--embed-thumbnail")
+            if tag_artwork in ("cropped-square", "inscribed-square", "cropped-480", "inscribed-480"):
+                vf_map = {
+                    "cropped-square":  "crop=min(iw,ih):min(iw,ih)",
+                    "inscribed-square":"pad=max(iw,ih):max(iw,ih):(ow-iw)/2:(oh-ih)/2",
+                    "cropped-480":     "crop=min(iw,ih):min(iw,ih),scale=480:480",
+                    "inscribed-480":   "pad=max(iw,ih):max(iw,ih):(ow-iw)/2:(oh-ih)/2,scale=480:480",
+                }
+                vf = vf_map.get(tag_artwork, "")
+                if vf:
+                    cmd += ["--ppa", f"ThumbnailsConvertor+ffmpeg_o:-vf {vf}"]
+
+        # Save separate thumbnail
+        if tag_save_thumb:
+            cmd.append("--write-thumbnail")
+
+        # Year tag
+        if tag_year_mode == "upload-date":
+            cmd += ["--parse-metadata", "upload_date:%(date)s"]
+        elif tag_year_mode == "current-year":
+            import datetime
+            yr = str(datetime.datetime.now().year)
+            cmd += ["--parse-metadata", f"{yr}:%(date)s"]
+
+        # Comment field
+        if tag_comment_mode == "id-in-comment":
+            cmd += ["--parse-metadata", "%(id)s:%(comment)s"]
+        elif tag_comment_mode == "video-link":
+            cmd += ["--parse-metadata", "%(webpage_url)s:%(comment)s"]
+        elif tag_comment_mode == "description":
+            cmd += ["--parse-metadata", "%(description)s:%(comment)s"]
+        elif tag_comment_mode == "custom" and tag_custom_cmt:
+            cmd += ["--parse-metadata", f"{tag_custom_cmt}:%(comment)s"]
+        # dont-write: do nothing
+
+        # Album artist
+        if tag_album_artist:
+            cmd += ["--parse-metadata", f"{tag_album_artist}:%(album_artist)s"]
+
+        # Tag extraction mode
+        if tag_extraction == "artist-title":
+            cmd += ["--parse-metadata", "%(title)s:%(artist)s - %(title)s"]
+        elif tag_extraction == "title":
+            cmd += ["--parse-metadata", "%(title)s:%(title)s"]
+        # regex: user would need custom config, skip for now
+
+        # Uploader fallback
+        if tag_use_uploader:
+            cmd += ["--parse-metadata", "%(uploader)s:%(artist)s"]
+
+        # Track position in playlist
+        if tag_track_pos:
+            cmd += ["--parse-metadata", "%(playlist_index)s:%(track_number)s"]
+
+        # Playlist as album
+        if tag_playlist_album:
+            cmd += ["--parse-metadata", "%(playlist_title)s:%(album)s"]
+
+        # Remove emoji from metadata
+        if tag_remove_emoji:
+            cmd += ["--replace-in-metadata", "title,artist,album", r"[^\x00-\x7F]+", ""]
+
+    # Restrict filenames to ASCII-safe if removing emoji
+    if remove_emoji_fn:
+        cmd.append("--restrict-filenames")
+
+    # ── Cookies ─────────────────────────────────────────────────
     cookie_file = None
     if cookie_mode == "browser":
         cmd += ["--cookies-from-browser", "chrome"]
@@ -334,33 +507,27 @@ def download(msg):
             cleanup_partial_files(out_path, video_id)
             cancelled = proc.returncode in (-15, 143) or "interrupted by user" in detail.lower()
             message = "Download cancelled" if cancelled else f"yt-dlp exited with code {proc.returncode}: {detail}".strip()
-            send_message({
-                "type": "error",
-                "videoId": video_id,
-                "error": message,
-            })
+            send_message({"type": "error", "videoId": video_id, "error": message})
             return
 
+        # Write source URL as comment (fallback via mutagen)
         meta_warn = None
         if downloaded_file and os.path.isfile(downloaded_file):
-            ok, err = write_source_comment(downloaded_file, url, video_id)
-            if not ok:
-                meta_warn = err
+            if tag_comment_mode == "id-in-comment":
+                ok, err = write_source_comment(downloaded_file, url, video_id)
+                if not ok:
+                    meta_warn = err
 
         payload = {"type": "done", "videoId": video_id}
         if meta_warn:
             payload["warning"] = f"Downloaded, but comment metadata could not be written ({meta_warn})."
-        if fmt == "mp3" and not ffmpeg_ok:
-            payload["warning"] = "Downloaded without conversion: install ffmpeg to export true MP3."
+        if fmt in ("mp3", "ogg", "wav") and not ffmpeg_ok:
+            payload["warning"] = f"Downloaded without conversion: install ffmpeg to export true {fmt.upper()}."
         send_message(payload)
 
     except FileNotFoundError:
         cleanup_partial_files(out_path, video_id)
-        send_message({
-            "type": "error",
-            "videoId": video_id,
-            "error": "yt-dlp not found. Install it with: pip install yt-dlp",
-        })
+        send_message({"type": "error", "videoId": video_id, "error": "yt-dlp not found. Install it with: pip install yt-dlp"})
     except Exception as e:
         cleanup_partial_files(out_path, video_id)
         send_message({"type": "error", "videoId": video_id, "error": str(e)})

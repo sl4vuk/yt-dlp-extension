@@ -78,6 +78,7 @@ const clipboardListWrap = $('clipboard-list-wrap');
 const clipboardList = $('clipboard-list');
 
 let selectedFormat = 'mp3';
+let outputMode = 'audio'; // 'audio' or 'video'
 let toastTimer;
 let pathSaveTimer;
 let isDownloading = false;
@@ -241,6 +242,200 @@ $('btn-tab').addEventListener('click', () => {
 // ── SETTINGS ────────────────────────────────────────────────────
 $('btn-settings').addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') });
+});
+
+// ── OUTPUT MODE (Audio / Video toggle) ──────────────────────────
+const AUDIO_FORMATS = ['mp3','ogg','wav','m4a'];
+const VIDEO_FORMATS = ['mp4','webm','flv'];
+
+const fmtSubmenu = $('fmt-submenu');
+const fmtMainBtns = $('fmt-main-btns');
+let fmtSubmenuOpen = false;
+
+function closeFmtSubmenu() {
+  if (!fmtSubmenuOpen) return;
+  fmtSubmenuOpen = false;
+  fmtSubmenu?.classList.remove('is-open');
+  $('btn-fmt-mp3')?.closest('.fmt-compact-wrap')?.classList.remove('fmt-submenu-open');
+}
+
+function openFmtSubmenu() {
+  fmtSubmenuOpen = true;
+  buildFmtSubmenu();
+  fmtSubmenu?.classList.add('is-open');
+  $('btn-fmt-mp3')?.closest('.fmt-compact-wrap')?.classList.add('fmt-submenu-open');
+  fmtSubmenu?.querySelectorAll('.fmt-sub-opt').forEach(b => {
+    b.classList.toggle('active', b.dataset.fmt === selectedFormat);
+  });
+}
+
+function buildFmtSubmenu() {
+  if (!fmtSubmenu) return;
+  const formats = outputMode === 'audio' ? AUDIO_FORMATS : VIDEO_FORMATS;
+  fmtSubmenu.innerHTML = formats.map(f =>
+    `<button class="fmt-sub-opt${selectedFormat === f ? ' active' : ''}" data-fmt="${f}">${f.toUpperCase()}</button>`
+  ).join('');
+}
+
+function syncFmtMainButtons() {
+  // Fast button always shown. MP3 button shows current non-fast selection label
+  const mp3Btn = $('btn-fmt-mp3');
+  if (!mp3Btn) return;
+  const isAudio = outputMode === 'audio';
+  const nonFastFmts = isAudio ? AUDIO_FORMATS : VIDEO_FORMATS;
+  const isFast = selectedFormat === 'fast';
+  const activeNonFast = nonFastFmts.includes(selectedFormat) ? selectedFormat : (isAudio ? 'mp3' : 'mp4');
+  mp3Btn.childNodes[0].textContent = activeNonFast.toUpperCase() + ' ';
+  fmtMainBtns?.querySelectorAll('.to').forEach(b => {
+    b.classList.toggle('on', b.dataset.fmt === (isFast ? 'fast' : '_non-fast'));
+  });
+  if (isFast) {
+    fmtMainBtns?.querySelector('[data-fmt="fast"]')?.classList.add('on');
+    mp3Btn?.classList.remove('on');
+  } else {
+    fmtMainBtns?.querySelector('[data-fmt="fast"]')?.classList.remove('on');
+    mp3Btn?.classList.add('on');
+  }
+}
+
+// Fast button
+fmtMainBtns?.querySelector('[data-fmt="fast"]')?.addEventListener('click', async () => {
+  closeFmtSubmenu();
+  selectedFormat = 'fast';
+  syncFmtMainButtons();
+  await store.set({ format: 'fast' });
+});
+
+// MP3/non-fast button — toggle submenu
+$('btn-fmt-mp3')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (fmtSubmenuOpen) { closeFmtSubmenu(); return; }
+  buildFmtSubmenu();
+  openFmtSubmenu();
+});
+
+// Submenu item click
+fmtSubmenu?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.fmt-sub-opt');
+  if (!btn) return;
+  selectedFormat = btn.dataset.fmt;
+  closeFmtSubmenu();
+  syncFmtMainButtons();
+  await store.set({ format: selectedFormat });
+});
+
+// Close submenu on outside click
+document.addEventListener('click', () => closeFmtSubmenu());
+
+function applyOutputMode(mode, { persist = true } = {}) {
+  outputMode = mode || 'audio';
+  const isAudio = outputMode === 'audio';
+  const btnMode = $('btn-output-mode');
+  const iconAudio = $('icon-output-audio');
+  const iconVideo = $('icon-output-video');
+  if (btnMode) {
+    btnMode.title = isAudio ? 'Audio mode — click to switch to Video' : 'Video mode — click to switch to Audio';
+  }
+  if (iconAudio) iconAudio.style.display = isAudio ? '' : 'none';
+  if (iconVideo) iconVideo.style.display = isAudio ? 'none' : '';
+
+  // If current format doesn't belong to new mode, reset
+  const validFmts = isAudio ? ['fast', ...AUDIO_FORMATS] : ['fast', ...VIDEO_FORMATS];
+  if (!validFmts.includes(selectedFormat)) {
+    selectedFormat = isAudio ? 'mp3' : 'mp4';
+  }
+  syncFmtMainButtons();
+  if (persist) store.set({ outputMode });
+}
+
+$('btn-output-mode')?.addEventListener('click', () => {
+  applyOutputMode(outputMode === 'audio' ? 'video' : 'audio');
+});
+
+// ── TERMINAL CLEAR DROPDOWN ──────────────────────────────────────
+const terminalClearTrigger = $('terminal-clear-trigger');
+const terminalClearMenu = $('terminal-clear-menu');
+let clearMenuOpen = false;
+
+terminalClearTrigger?.addEventListener('click', e => {
+  e.stopPropagation();
+  clearMenuOpen = !clearMenuOpen;
+  terminalClearMenu?.classList.toggle('is-open', clearMenuOpen);
+});
+document.addEventListener('click', () => {
+  clearMenuOpen = false;
+  terminalClearMenu?.classList.remove('is-open');
+});
+
+$('clear-completed')?.addEventListener('click', () => {
+  // Remove only 'ok' log lines and zero the downloaded stat
+  const lines = dlLog.querySelectorAll('.ok');
+  lines.forEach(l => l.remove());
+  // Reset downloaded counter in state
+  downloadDashboardState.stats.downloaded = 0;
+  downloadDashboardState.downloadedItems = [];
+  store.set({ downloadedItemsJson: '[]', downloadStatsJson: JSON.stringify(downloadDashboardState.stats) });
+  renderDashboardStats();
+  toast('Completed items cleared');
+});
+
+$('clear-all')?.addEventListener('click', () => {
+  dlLog.innerHTML = '';
+  downloadDashboardState = normalizeDashboardState({});
+  store.set({ downloadStatsJson: '{}', downloadIssuesJson: '{}', downloadedItemsJson: '[]' });
+  renderDashboardStats();
+  clearTerminalFilter();
+  toast('All cleared');
+});
+
+// ── CLIPBOARD: Ctrl+V PASTE & DRAG-DROP ─────────────────────────
+function isValidYtUrl(url) {
+  try {
+    const u = new URL(url.trim());
+    return (u.hostname === 'www.youtube.com' || u.hostname === 'music.youtube.com' || u.hostname === 'youtu.be') &&
+      (u.pathname === '/watch' || u.hostname === 'youtu.be');
+  } catch { return false; }
+}
+
+function addClipboardUrl(raw) {
+  const urls = extractUrlsFromText(raw);
+  let added = 0;
+  for (const url of urls) {
+    if (!clipboardUrls.includes(url)) { clipboardUrls.push(url); added++; }
+  }
+  if (added) {
+    saveClipboardUrls();
+    scheduleClipboardRender();
+    updateTotalForCurrentMode();
+    toast(`Added ${added} URL${added > 1 ? 's' : ''}`);
+  }
+  return added;
+}
+
+document.addEventListener('keydown', async e => {
+  if (currentMode !== 'clipboard') return;
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!addClipboardUrl(text)) toast('No valid YouTube URL found');
+    } catch { toast('Clipboard access denied'); }
+  }
+});
+
+// Drag URL text onto sidebar in clipboard mode
+const sidebarEl = $('sidebar');
+sidebarEl?.addEventListener('dragover', e => {
+  if (currentMode !== 'clipboard') return;
+  e.preventDefault();
+  sidebarEl.classList.add('clipboard-drop-active');
+});
+sidebarEl?.addEventListener('dragleave', () => sidebarEl.classList.remove('clipboard-drop-active'));
+sidebarEl?.addEventListener('drop', e => {
+  sidebarEl.classList.remove('clipboard-drop-active');
+  if (currentMode !== 'clipboard') return;
+  e.preventDefault();
+  const text = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text/uri-list') || '';
+  if (!addClipboardUrl(text)) toast('No valid YouTube URL found');
 });
 
 // ── EXPORT TOGGLE ───────────────────────────────────────────────
@@ -871,7 +1066,7 @@ btnDownload.addEventListener('click', async () => {
     return;
   }
 
-  const saved = await store.get(['downloadCookieMode', 'oauthCookiesText']);
+  const saved = await store.get(['downloadCookieMode', 'oauthCookiesText', 'startDownloadAutomatically']);
   const cookieMode = saved.downloadCookieMode || 'off';
   const cookieText = saved.oauthCookiesText || '';
 
@@ -981,7 +1176,8 @@ chrome.runtime.onMessage.addListener(msg => {
       : msg.result.success
         ? `✓ ${msg.title}${msg.result.warning ? ` (${msg.result.warning})` : ''}`
         : `✗ ${msg.title}: ${msg.result.error || ''}`;
-    appendLog(line, msg.result.skipped ? 'skip' : msg.result.success ? 'ok' : 'err');
+    const cls = msg.result.skipped ? 'skip' : msg.result.success ? 'ok' : 'err';
+    appendLog(line, cls);
 
     if ((msg.result.success || msg.result.skipped) && msg.item?.sourceMode === 'clipboard' && msg.item?.sourceUrl) {
       removeClipboardUrl(msg.item.sourceUrl);
@@ -990,6 +1186,14 @@ chrome.runtime.onMessage.addListener(msg => {
     if (msg.result.success || msg.result.skipped || classifyIssueBucket(msg.result.error)) {
       loadDashboardState();
     }
+
+    // Auto-remove completed log line if setting is on
+    store.get(['removeCompletedAutomatically']).then(s => {
+      if (s.removeCompletedAutomatically && (msg.result.success || msg.result.skipped)) {
+        const last = dlLog.querySelector(`.${cls}:last-child`);
+        if (last) setTimeout(() => last.remove(), 1200);
+      }
+    });
   }
 
   if (msg.type === 'QUEUE_DONE') {
@@ -1099,16 +1303,24 @@ async function init() {
   document.body.classList.toggle('popup-mode', mode !== 'tab' && mode !== 'sidebar');
   document.body.classList.toggle('sidebar-mode', mode === 'sidebar');
 
-  const saved = await store.get(['theme', 'format', 'downloadPath', 'lastFolder', 'defaultFolder', 'downloadMode']);
+  const saved = await store.get(['theme', 'format', 'downloadPath', 'lastFolder', 'defaultFolder', 'downloadMode', 'outputMode']);
   await applyInterfaceLanguage();
   applyTheme(saved.theme || 'system');
 
-  if (saved.format) {
-    selectedFormat = saved.format === 'm4a' ? 'fast' : saved.format;
-  } else {
-    selectedFormat = 'mp3';
-  }
-  document.querySelectorAll('.to[data-fmt]').forEach(b => b.classList.toggle('on', b.dataset.fmt === selectedFormat));
+  // Restore output mode (audio/video) — must happen before format restore
+  outputMode = saved.outputMode || 'audio';
+  const isAudio = outputMode === 'audio';
+  const allValidFmts = isAudio ? ['fast', ...AUDIO_FORMATS] : ['fast', ...VIDEO_FORMATS];
+
+  selectedFormat = saved.format || (isAudio ? 'mp3' : 'mp4');
+  if (!allValidFmts.includes(selectedFormat)) selectedFormat = isAudio ? 'mp3' : 'mp4';
+  applyOutputMode(outputMode, { persist: false });
+
+  // Instant clipboard refresh when window gains focus
+  window.addEventListener('focus', () => { if (currentMode === 'clipboard') pollClipboard(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && currentMode === 'clipboard') pollClipboard();
+  });
 
   if (saved.downloadPath) {
     pathInput.value = saved.downloadPath;
@@ -1157,9 +1369,12 @@ async function init() {
     if (area !== 'local') return;
     if (changes.theme) applyTheme(changes.theme.newValue);
     if (changes.showExport || changes.autoSync) applySettings();
+    if (changes.outputMode) {
+      applyOutputMode(changes.outputMode.newValue || 'audio', { persist: false });
+    }
     if (changes.format) {
-      selectedFormat = changes.format.newValue === 'm4a' ? 'fast' : (changes.format.newValue || 'mp3');
-      document.querySelectorAll('.to[data-fmt]').forEach(b => b.classList.toggle('on', b.dataset.fmt === selectedFormat));
+      selectedFormat = changes.format.newValue || selectedFormat;
+      syncFmtMainButtons();
     }
     if (changes.downloadPath && document.activeElement !== pathInput) {
       pathInput.value = changes.downloadPath.newValue || '';
