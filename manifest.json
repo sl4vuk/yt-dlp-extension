@@ -36,6 +36,10 @@
     "quick-download": {
       "suggested_key": { "default": "Alt+F" },
       "description": "Download current YouTube / YT Music video with yt-dlp"
+    },
+    "like-and-bookmark": {
+      "suggested_key": { "default": "Ctrl+W" },
+      "description": "Like and bookmark the current YouTube / YT Music video"
     }
   },
 

@@ -109,7 +109,36 @@ async function updateActionBehavior() {
 // ── COMMANDS ─────────────────────────────────────────────────────
 chrome.commands?.onCommand.addListener(async cmd => {
   if (cmd === 'quick-download') await handleQuickDownload();
+  if (cmd === 'like-and-bookmark') await handleLikeAndBookmark();
 });
+
+async function handleLikeAndBookmark() {
+  const s = await new Promise(r => chrome.storage.local.get(['likeShortcutEnabled', 'likeShortcutFolder', 'lastFolder', 'defaultFolder'], r));
+  if (s.likeShortcutEnabled === false) return;
+
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs?.[0];
+  if (!tab) return;
+
+  const isYT = tab.url?.includes('youtube.com/watch') || tab.url?.includes('music.youtube.com/watch');
+  if (!isYT) return;
+
+  // Send message to content script to like + bookmark
+  chrome.tabs.sendMessage(tab.id, { type: 'LIKE_AND_BOOKMARK' }).catch(() => {});
+
+  // Also save to the configured bookmark folder
+  const folderId = s.likeShortcutFolder || s.lastFolder || s.defaultFolder || '1';
+  const vid = new URL(tab.url).searchParams.get('v');
+  if (!vid) return;
+  const cleanUrl = `https://www.youtube.com/watch?v=${vid}`;
+  const title = (tab.title || vid).replace(/ - YouTube.*$/i, '').replace(/ - YouTube Music.*$/i, '').trim();
+
+  const children = await new Promise(r => chrome.bookmarks.getChildren(folderId, r)).catch(() => []);
+  const exists = (children || []).some(b => b.url?.includes(vid));
+  if (!exists) {
+    chrome.bookmarks.create({ parentId: folderId, title, url: cleanUrl });
+  }
+}
 
 async function handleToggleUI() {
   if (panelMode === 'sidebar') {
@@ -669,7 +698,48 @@ async function loadQueueSettings() {
   return new Promise(r => chrome.storage.local.get(QUEUE_SETTING_KEYS, r));
 }
 
-// ── BACKGROUND DOWNLOAD QUEUE ─────────────────────────────────────
+// ── TITLE ENRICHMENT ─────────────────────────────────────────────
+// Cache: videoId → { displayTitle, uploader }
+const titleCache = new Map();
+
+async function enrichItemTitle(item) {
+  if (titleCache.has(item.videoId)) {
+    return { ...item, ...titleCache.get(item.videoId) };
+  }
+  // Try to find an open YouTube tab for this video
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (!tab.url) continue;
+      const isYT = tab.url.includes('youtube.com/watch') || tab.url.includes('music.youtube.com/watch');
+      if (!isYT) continue;
+      let tabVid = null;
+      try { tabVid = new URL(tab.url).searchParams.get('v'); } catch {}
+      if (tabVid !== item.videoId) continue;
+      // Strip YouTube suffix from tab title
+      const raw = (tab.title || '')
+        .replace(/\s*-\s*YouTube\s*Music\s*$/, '')
+        .replace(/\s*-\s*YouTube\s*$/, '')
+        .trim();
+      if (!raw) break;
+      // Try to get uploader from content script
+      let uploader = '';
+      try {
+        const resp = await chrome.tabs.sendMessage(tab.id, { type: 'GET_UPLOADER' });
+        uploader = resp?.uploader || '';
+      } catch {}
+      const enriched = { displayTitle: raw, uploader };
+      titleCache.set(item.videoId, enriched);
+      return { ...item, ...enriched };
+    }
+  } catch {}
+  // Fallback: use item.title as displayTitle
+  return { ...item, displayTitle: item.title || item.videoId };
+}
+
+async function enrichQueue(queue) {
+  return Promise.all(queue.map(item => enrichItemTitle(item)));
+}
 
 async function processQueue() {
   if (isDownloading) return;
@@ -679,6 +749,9 @@ async function processQueue() {
 
   const settings = await loadQueueSettings();
   const concurrency = Math.max(1, Math.min(Number(settings.simultaneousDownloads) || 1, 10));
+
+  // Enrich titles before downloading
+  downloadQueue = await enrichQueue(downloadQueue);
 
   try {
     // Parallel pool: process `concurrency` items at a time

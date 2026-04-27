@@ -269,9 +269,90 @@
         </div>
       </details>
 
-    </section>
+      <!-- ── URL Cleaning accordion ── -->
+      <details class="settings-accordion">
+        <summary class="accordion-summary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <div class="accordion-info">
+            <span class="accordion-title">URL Cleaning</span>
+            <span class="accordion-hint">When and what to strip from YouTube URLs.</span>
+          </div>
+          <svg class="accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div class="accordion-body">
 
-    <!-- ═══════ DOWNLOAD ═══════ -->
+          <!-- When to clean — single select -->
+          <div class="settings-card" id="setting-card-urlCleanTrigger" data-setting-key="urlCleanTrigger" data-setting-title="Auto URL cleaning" data-setting-category="General" data-setting-section="general">
+            <div class="setting-info" style="margin-bottom:10px">
+              <div class="setting-label">Auto URL cleaning</div>
+              <div class="setting-hint">When to automatically clean YouTube URLs. Only one can be active.</div>
+            </div>
+            <div class="vr-group" data-vr-key="urlCleanTrigger">
+              <button class="vr-opt" data-key="urlCleanTrigger" data-value="always" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <span>Always</span>
+              </button>
+              <button class="vr-opt" data-key="urlCleanTrigger" data-value="bookmark" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                <span>On bookmark</span>
+              </button>
+              <button class="vr-opt" data-key="urlCleanTrigger" data-value="download" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>On download</span>
+              </button>
+              <button class="vr-opt" data-key="urlCleanTrigger" data-value="like" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span>On like</span>
+              </button>
+              <button class="vr-opt" data-key="urlCleanTrigger" data-value="copy" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                <span>On copy</span>
+              </button>
+              <button class="vr-opt" data-key="urlCleanTrigger" data-value="off" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Don't clean</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- What to clean — multi select -->
+          <div class="settings-card" id="setting-card-urlCleanTargets" data-setting-key="urlCleanTargets" data-setting-title="What to clean" data-setting-category="General" data-setting-section="general">
+            <div class="setting-info" style="margin-bottom:10px">
+              <div class="setting-label">What to clean</div>
+              <div class="setting-hint">Select parameters to strip. Selecting "All" clears the others and vice versa. Multiple can be active.</div>
+            </div>
+            <div class="url-clean-targets-group vr-group" id="url-clean-targets">
+              <button class="vr-opt url-clean-target" data-target="all" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <span>All</span>
+              </button>
+              <button class="vr-opt url-clean-target" data-target="playlist" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                <span>Playlist / list</span>
+              </button>
+              <button class="vr-opt url-clean-target" data-target="timestamps" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>Timestamps</span>
+              </button>
+              <button class="vr-opt url-clean-target" data-target="radio" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+                <span>Radio</span>
+              </button>
+              <button class="vr-opt url-clean-target" data-target="short" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span>Shortened → full</span>
+              </button>
+              <button class="vr-opt url-clean-target" data-target="embed" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                <span>Embed</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </details>
+
+    </section>
     <section class="settings-section" id="section-download">
       <h1 class="section-title">Download</h1>
       <p class="section-desc">Speed, folders, quality, proxy, and download execution behavior.</p>
@@ -330,6 +411,33 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
             </button>
           </div>
+        </div>
+
+        <div class="shortcut-divider"></div>
+
+        <div class="shortcut-row">
+          <div class="setting-info">
+            <div class="setting-label">Like &amp; Bookmark current video</div>
+            <div class="setting-hint">Likes the current YouTube / YT Music video and saves it to the selected bookmark folder.</div>
+          </div>
+          <div class="shortcut-key-display">
+            <label class="toggle-switch" style="margin-right:8px">
+              <input type="checkbox" id="set-like-shortcut-enabled"/>
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="key-badge">Ctrl + W</span>
+            <button class="shortcut-open-btn" id="open-shortcuts-like" title="Open extension shortcuts">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="shortcut-row" id="like-shortcut-folder-row">
+          <div class="setting-info">
+            <div class="setting-label">Bookmark folder for Like shortcut</div>
+            <div class="setting-hint">Videos will be bookmarked here when you use the Like shortcut. Uses the same folder as Bookmark folder when not set separately.</div>
+          </div>
+          <select id="set-like-shortcut-folder" class="setting-select"></select>
         </div>
       </div>
 

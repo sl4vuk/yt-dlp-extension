@@ -80,6 +80,9 @@ def check_exists(output_path, video_id):
     target_url = f"https://www.youtube.com/watch?v={video_id}"
 
     for f in os.listdir(output_path):
+        # Filename heuristic: [videoId] in name
+        if f"[{video_id}]" in f or video_id in f:
+            return True
         full = os.path.join(output_path, f)
         if not os.path.isfile(full):
             continue
@@ -133,7 +136,8 @@ def write_source_comment(file_path, url, video_id):
         if audio is None:
             return False, "unsupported audio format"
 
-        comment = url or f"https://www.youtube.com/watch?v={video_id}"
+        # Write only the video ID into the comment tag, not the full URL
+        comment = video_id
 
         if isinstance(audio, MP4):
             if audio.tags is None:
@@ -402,7 +406,8 @@ def download(msg):
 
         # Comment field
         if tag_comment_mode == "id-in-comment":
-            cmd += ["--parse-metadata", "%(id)s:%(comment)s"]
+            # Write only the video ID (e.g. knXcQ1ubezU), not the full URL
+            cmd += ["--parse-metadata", f"%(id)s:%(comment)s"]
         elif tag_comment_mode == "video-link":
             cmd += ["--parse-metadata", "%(webpage_url)s:%(comment)s"]
         elif tag_comment_mode == "description":

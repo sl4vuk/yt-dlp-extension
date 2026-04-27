@@ -379,13 +379,36 @@ select:focus { outline: none; background: var(--bg3); }
   font-size: 11px;
   color: var(--tx3);
   overflow-y: auto;
-  line-height: 1.6;
+  line-height: 1.9;
   flex: 1;
   min-height: 220px;
 }
-.log-area .ok { color: var(--acc); }
-.log-area .err { color: var(--acc); }
+/* Log line container */
+.log-line { display: inline-flex; align-items: baseline; gap: 0; flex-wrap: wrap; }
+.log-line.ok {}
+.log-line.err {}
+.log-line.skip { opacity: .55; }
+/* Bracket / punctuation */
+.lc-brk  { color: #ffffff; }
+.lc-plus { color: #4caf50; }
+.lc-minus{ color: #f44336; }
+.lc-sep  { color: #636363; }
+.lc-pipe { color: #636363; }
+/* Artist + title: white on success, grey on fail */
+.log-line.ok  .lc-artist, .log-line.ok  .lc-title  { color: #ffffff; }
+.log-line.err .lc-artist, .log-line.err .lc-title  { color: #636363; }
+/* video ID: magenta */
+.lc-id   { color: #e040fb; }
+/* error text: red */
+.lc-err  { color: #f44336; }
+/* hover highlight */
+.lc-artist:hover, .lc-title:hover, .lc-id:hover { color: #ffd600 !important; cursor: pointer; text-decoration: underline; }
 .log-area .skip { color: var(--tx3); }
+
+/* ── SHOW ALL / DETAIL STAT CARDS ───────────────────────────── */
+.tab-stat-card-showall { font-weight: 700; }
+.tab-stat-card-sub { font-size: 10px; color: var(--tx3); }
+.stat-cards-detail { display: contents; }
 
 footer { font-size: 10px; color: var(--tx3); text-align: center; letter-spacing: .05em; padding-top: 2px; margin-top: auto; }
 #toast { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--bg3); color: var(--tx); font-size: 11px; padding: 6px 14px; border-radius: 20px; opacity: 0; transition: opacity .18s; }

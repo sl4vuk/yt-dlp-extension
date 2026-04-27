@@ -83,6 +83,13 @@ let toastTimer;
 let pathSaveTimer;
 let isDownloading = false;
 let currentMode = 'bookmarks';
+
+// Per-outputMode state for source lists
+const modeState = {
+  audio: { bookmarkFolder: '', fileUrls: [], clipboardUrls: [] },
+  video: { bookmarkFolder: '', fileUrls: [], clipboardUrls: [] },
+};
+// Active references (always point to current outputMode's state)
 let fileUrls = [];
 let clipboardUrls = [];
 let clipboardPollTimer = null;
@@ -182,15 +189,22 @@ function getFailedItems() {
   ];
 }
 
+let showAllActive = false;
+const statDetailCards = document.getElementById('stat-detail-cards');
+const statShowallCards = document.getElementById('stat-showall-cards');
+const statDownloadedSub = document.getElementById('stat-downloaded-sub');
+const statFailedSub = document.getElementById('stat-failed-sub');
+
 function renderDashboardStats() {
   const stats = downloadDashboardState.stats;
-  const downloadedMode = currentDashboardBucket === 'failed' ? 'failed' : 'downloaded';
-  statDownloaded.textContent = downloadedMode === 'failed' ? getFailedItems().length : stats.downloaded;
-  if (statDownloadedLabel) statDownloadedLabel.textContent = downloadedMode === 'failed' ? 'Failed' : 'Downloaded';
-  statAgeRestricted.textContent = downloadDashboardState.issues.ageRestricted.length;
-  statUnavailable.textContent = downloadDashboardState.issues.unavailable.length;
-  statCopyright.textContent = downloadDashboardState.issues.copyright.length;
-  statTerminated.textContent = downloadDashboardState.issues.terminated.length;
+  // "Show all" counter = total events
+  statDownloaded.textContent = stats.downloaded + getFailedItems().length;
+  if (statDownloadedSub) statDownloadedSub.textContent = stats.downloaded;
+  if (statFailedSub) statFailedSub.textContent = getFailedItems().length;
+  if (statAgeRestricted) statAgeRestricted.textContent = downloadDashboardState.issues.ageRestricted.length;
+  if (statUnavailable) statUnavailable.textContent = downloadDashboardState.issues.unavailable.length;
+  if (statCopyright) statCopyright.textContent = downloadDashboardState.issues.copyright.length;
+  if (statTerminated) statTerminated.textContent = downloadDashboardState.issues.terminated.length;
 }
 
 // Theme helpers
@@ -327,9 +341,24 @@ fmtSubmenu?.addEventListener('click', async (e) => {
 // Close submenu on outside click
 document.addEventListener('click', () => closeFmtSubmenu());
 
+// Per-mode log state storage (audio vs video — persist across mode toggle)
+const modeLogState = { audio: '', video: '' };
+
 function applyOutputMode(mode, { persist = true } = {}) {
+  // Save current log HTML before switching
+  if (persist) modeLogState[outputMode] = dlLog.innerHTML;
+
+  // Save current list references into old mode
+  modeState[outputMode].fileUrls = fileUrls.slice();
+  modeState[outputMode].clipboardUrls = clipboardUrls.slice();
+
   outputMode = mode || 'audio';
   const isAudio = outputMode === 'audio';
+
+  // Restore list references for new mode
+  fileUrls = modeState[outputMode].fileUrls.slice();
+  clipboardUrls = modeState[outputMode].clipboardUrls.slice();
+
   const btnMode = $('btn-output-mode');
   const iconAudio = $('icon-output-audio');
   const iconVideo = $('icon-output-video');
@@ -339,12 +368,39 @@ function applyOutputMode(mode, { persist = true } = {}) {
   if (iconAudio) iconAudio.style.display = isAudio ? '' : 'none';
   if (iconVideo) iconVideo.style.display = isAudio ? 'none' : '';
 
+  // Restore log for this mode
+  if (persist) dlLog.innerHTML = modeLogState[outputMode] || '';
+
   // If current format doesn't belong to new mode, reset
   const validFmts = isAudio ? ['fast', ...AUDIO_FORMATS] : ['fast', ...VIDEO_FORMATS];
   if (!validFmts.includes(selectedFormat)) {
     selectedFormat = isAudio ? 'mp3' : 'mp4';
   }
   syncFmtMainButtons();
+
+  // Restore bookmark folder for this mode
+  const savedFolder = modeState[outputMode].bookmarkFolder;
+  if (savedFolder && folderSel) {
+    folderSel.value = savedFolder;
+  }
+
+  // Update display
+  scheduleClipboardRender();
+  updateTotalForCurrentMode();
+
+  // Load the output folder for this mode
+  const pathKey = isAudio ? 'audioDownloadFolder' : 'videoDownloadFolder';
+  store.get([pathKey, 'useSameOutputPath', 'audioDownloadFolder']).then(s => {
+    let p = '';
+    if (!isAudio && s.useSameOutputPath) {
+      p = s.audioDownloadFolder || '';
+    } else {
+      p = s[pathKey] || '';
+    }
+    pathInput.value = p;
+    pathInput.classList.toggle('has-path', !!p);
+  });
+
   if (persist) store.set({ outputMode });
 }
 
@@ -404,6 +460,7 @@ function addClipboardUrl(raw) {
     if (!clipboardUrls.includes(url)) { clipboardUrls.push(url); added++; }
   }
   if (added) {
+    modeState[outputMode].clipboardUrls = clipboardUrls.slice();
     saveClipboardUrls();
     scheduleClipboardRender();
     updateTotalForCurrentMode();
@@ -527,7 +584,10 @@ async function refreshTotal(folderId) {
 
 folderSel.addEventListener('change', async () => {
   const fid = folderSel.value;
-  await store.set({ lastFolder: fid });
+  modeState[outputMode].bookmarkFolder = fid;
+  // Also save to the generic lastFolder for this mode
+  const key = outputMode === 'video' ? 'lastFolderVideo' : 'lastFolder';
+  await store.set({ [key]: fid });
   refreshTotal(fid);
 });
 
@@ -535,14 +595,16 @@ folderSel.addEventListener('change', async () => {
 pathInput.addEventListener('change', async () => {
   const val = pathInput.value.trim();
   pathInput.classList.toggle('has-path', !!val);
-  await store.set({ downloadPath: val });
+  const key = outputMode === 'video' ? 'videoDownloadFolder' : 'audioDownloadFolder';
+  await store.set({ [key]: val, downloadPath: val });
 });
 pathInput.addEventListener('input', () => {
   clearTimeout(pathSaveTimer);
   pathSaveTimer = setTimeout(async () => {
     const val = pathInput.value.trim();
     pathInput.classList.toggle('has-path', !!val);
-    await store.set({ downloadPath: val });
+    const key = outputMode === 'video' ? 'videoDownloadFolder' : 'audioDownloadFolder';
+    await store.set({ [key]: val, downloadPath: val });
   }, 600);
 });
 
@@ -600,25 +662,16 @@ function setMode(mode, { persist = true } = {}) {
   Object.entries(modePanels).forEach(([k, panel]) => {
     panel.classList.toggle('active', k === mode);
   });
-
-  // Update total display based on mode
   updateTotalForCurrentMode();
-
-  if (mode === 'clipboard') startClipboardPolling();
-
-  if (mode !== 'clipboard') stopClipboardPolling();
-
-  // Show/hide bookmark-specific sections
   const isBookmarks = mode === 'bookmarks';
   if (syncSection) {
     syncSection.style.display = isBookmarks ? '' : 'none';
     dividerSync.style.display = isBookmarks ? '' : 'none';
   }
-
-  // Persist mode
-  if (persist) {
-    store.set({ downloadMode: mode });
-  }
+  // Hide sync stats (Scanned/Synced/Skipped) when not in bookmarks mode
+  const syncStats = $('sync-stats');
+  if (syncStats) syncStats.style.display = isBookmarks ? '' : 'none';
+  if (persist) store.set({ downloadMode: mode });
 }
 
 // ── FILE MODE ────────────────────────────────────────────────────
@@ -655,6 +708,7 @@ function loadUrlFile(file) {
   reader.onload = () => {
     const text = reader.result;
     fileUrls = extractUrlsFromText(text);
+    modeState[outputMode].fileUrls = fileUrls.slice();
     fileNameDisplay.textContent = file.name;
     fileUrlCount.textContent = `${fileUrls.length} URLs`;
     fileDropZone.style.display = 'none';
@@ -755,17 +809,18 @@ clipboardListWrap.addEventListener('scroll', () => {
 });
 
 async function saveClipboardUrls() {
-  await store.set({ clipboardUrls: JSON.stringify(clipboardUrls) });
+  const key = outputMode === 'video' ? 'clipboardUrlsVideo' : 'clipboardUrls';
+  modeState[outputMode].clipboardUrls = clipboardUrls.slice();
+  await store.set({ [key]: JSON.stringify(clipboardUrls) });
 }
 
 async function loadClipboardUrls() {
-  const saved = await store.get(['clipboardUrls']);
-  if (saved.clipboardUrls) {
-    try {
-      const parsed = JSON.parse(saved.clipboardUrls);
-      clipboardUrls = Array.isArray(parsed) ? parsed : [];
-    } catch { clipboardUrls = []; }
-  }
+  const audioKey = 'clipboardUrls';
+  const videoKey = 'clipboardUrlsVideo';
+  const saved = await store.get([audioKey, videoKey]);
+  try { modeState.audio.clipboardUrls = JSON.parse(saved[audioKey] || '[]'); } catch { modeState.audio.clipboardUrls = []; }
+  try { modeState.video.clipboardUrls = JSON.parse(saved[videoKey] || '[]'); } catch { modeState.video.clipboardUrls = []; }
+  clipboardUrls = modeState[outputMode].clipboardUrls.slice();
   scheduleClipboardRender();
   if (currentMode === 'clipboard') updateTotalForCurrentMode();
 }
@@ -794,14 +849,19 @@ async function pollClipboard() {
       await saveClipboardUrls();
       scheduleClipboardRender();
       if (currentMode === 'clipboard') updateTotalForCurrentMode();
+      // Auto-switch to clipboard mode if setting allows
+      const s = await store.get(['clipboardAutoSwitch']);
+      if (s.clipboardAutoSwitch !== false && currentMode !== 'clipboard') {
+        setMode('clipboard');
+      }
     }
   } catch {}
 }
 
 function startClipboardPolling() {
   if (clipboardPollTimer) return;
-  clipboardPollTimer = setInterval(pollClipboard, 1500);
-  pollClipboard(); // immediate first check
+  clipboardPollTimer = setInterval(pollClipboard, 1200);
+  pollClipboard();
 }
 
 function stopClipboardPolling() {
@@ -819,6 +879,7 @@ function removeClipboardUrl(url) {
   const before = clipboardUrls.length;
   clipboardUrls = clipboardUrls.filter(entry => entry !== url);
   if (clipboardUrls.length !== before) {
+    modeState[outputMode].clipboardUrls = clipboardUrls.slice();
     saveClipboardUrls();
     scheduleClipboardRender();
     if (currentMode === 'clipboard') updateTotalForCurrentMode();
@@ -964,25 +1025,147 @@ async function openDownloadedFolder() {
   toast('Opened download folder');
 }
 
+// ── STAT CARD CLICKS ─────────────────────────────────────────────
+function setShowAllMode(active) {
+  showAllActive = active;
+  if (statDetailCards) statDetailCards.style.display = active ? 'none' : 'contents';
+  if (statShowallCards) statShowallCards.style.display = active ? 'contents' : 'none';
+  document.getElementById('stat-card-showall')?.classList.toggle('active', active);
+}
+
 tabStatCards.forEach(card => {
   card.addEventListener('click', () => {
     const action = card.dataset.statAction;
-    if (action === 'downloaded') {
-      if (currentDashboardBucket === 'downloaded') {
-        renderTerminalFilter('failed');
-      } else if (currentDashboardBucket === 'failed') {
+
+    // Show all toggle
+    if (action === 'showall') {
+      if (showAllActive) {
+        setShowAllMode(false);
         clearTerminalFilter();
       } else {
-        renderTerminalFilter('downloaded');
+        setShowAllMode(true);
+        clearTerminalFilter();
       }
       return;
     }
-    if (currentDashboardBucket === action) {
-      clearTerminalFilter();
+
+    // Sub-cards (downloaded / failed) only visible in showall mode
+    if (action === 'downloaded') {
+      if (currentDashboardBucket === 'downloaded') { clearTerminalFilter(); return; }
+      renderTerminalFilter('downloaded');
       return;
     }
+    if (action === 'failed') {
+      if (currentDashboardBucket === 'failed') { clearTerminalFilter(); return; }
+      renderTerminalFilter('failed');
+      return;
+    }
+
+    // Error category cards
+    if (currentDashboardBucket === action) { clearTerminalFilter(); return; }
     renderTerminalFilter(action);
   });
+});
+
+function renderTerminalFilter(bucket) {
+  currentDashboardBucket = bucket;
+  const issues = getIssuesForBucket(bucket);
+  document.querySelectorAll('.tab-stat-card').forEach(card => {
+    const action = card.dataset.statAction;
+    card.classList.toggle('active', action === bucket ||
+      (bucket === 'failed' && action === 'failed'));
+  });
+  const isFailureFilter = bucket !== 'downloaded' && issues.length > 0;
+  terminalFilterActions.hidden = !isFailureFilter;
+  terminalFilterLabel.hidden = false;
+  terminalFilterList.hidden = false;
+  terminalLogin.hidden = bucket !== 'ageRestricted';
+  terminalRetryAll.hidden = bucket === 'downloaded';
+  terminalFilterLabel.textContent = `${getFilterTitle(bucket)} · ${issues.length}`;
+  renderDashboardStats();
+
+  if (!issues.length) {
+    terminalFilterList.innerHTML = '<div class="terminal-filter-item"><div class="terminal-filter-url">No items in this category.</div></div>';
+    return;
+  }
+
+  // Render items — downloaded shows clean title+ID card, failures show title only
+  if (bucket === 'downloaded') {
+    terminalFilterList.innerHTML = issues.map((issue, index) => {
+      const vid = issue.videoId || '';
+      return `<div class="terminal-filter-item" data-issue-index="${index}">
+        <button class="terminal-filter-title" data-open-search="${index}">${esc(issue.title || vid)}</button>
+        ${vid ? `<div class="terminal-filter-url terminal-filter-id">${esc(vid)}</div>` : ''}
+      </div>`;
+    }).join('');
+  } else {
+    terminalFilterList.innerHTML = issues.map((issue, index) => `
+      <div class="terminal-filter-item" data-issue-index="${index}">
+        <button class="terminal-filter-title" data-open-search="${index}">${esc(issue.title || 'Unknown title')}</button>
+      </div>
+    `).join('');
+  }
+}
+
+// ── APPEND LOG — rich colored format ─────────────────────────────
+function appendLog(data, cls = '') {
+  const wrap = document.createElement('div');
+  wrap.className = `log-line ${cls}`;
+
+  if (typeof data === 'string') {
+    // Legacy plain text (skip lines etc.)
+    wrap.textContent = data;
+  } else {
+    const { artist, title, videoId, error, isSkip } = data;
+    const isOk = cls === 'ok';
+    const isErr = cls === 'err';
+
+    if (isSkip) {
+      wrap.textContent = `⟳ ${artist || ''} — ${title || ''}`;
+    } else {
+      const bracket = isOk ? '<span class="lc-brk">[</span><span class="lc-plus">+</span><span class="lc-brk">]</span>'
+                           : '<span class="lc-brk">[</span><span class="lc-minus">-</span><span class="lc-brk">]</span>';
+      const sep = '<span class="lc-sep"> — </span>';
+      const pipe = '<span class="lc-pipe"> | </span>';
+
+      const artistHtml = artist
+        ? `<span class="lc-artist" data-search="${encodeURIComponent(artist)}">${esc(artist)}</span>`
+        : '';
+      const titleHtml = title
+        ? `<span class="lc-title" data-search="${encodeURIComponent(title)}">${esc(title)}</span>`
+        : '';
+      const idHtml = videoId
+        ? `<span class="lc-id" data-vid="${encodeURIComponent(videoId)}">${esc(videoId)}</span>`
+        : '';
+      const errHtml = error
+        ? `<span class="lc-err">${esc(error)}</span>`
+        : '';
+
+      let right = isOk ? idHtml : errHtml;
+      wrap.innerHTML = `${bracket} ${artistHtml}${sep}${titleHtml}${pipe}${right}`;
+    }
+  }
+
+  dlLog.appendChild(wrap);
+  dlLog.scrollTop = dlLog.scrollHeight;
+}
+
+// Click on artist/title/id in log
+dlLog.addEventListener('click', e => {
+  const artist = e.target.closest('.lc-artist');
+  if (artist) {
+    chrome.tabs.create({ url: `https://www.youtube.com/results?search_query=${artist.dataset.search}` });
+    return;
+  }
+  const title = e.target.closest('.lc-title');
+  if (title) {
+    chrome.tabs.create({ url: `https://www.youtube.com/results?search_query=${title.dataset.search}` });
+    return;
+  }
+  const vid = e.target.closest('.lc-id');
+  if (vid) {
+    chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${vid.dataset.vid}` });
+  }
 });
 
 terminalRetryAll.addEventListener('click', async () => {
@@ -1171,26 +1354,45 @@ chrome.runtime.onMessage.addListener(msg => {
   }
 
   if (msg.type === 'QUEUE_RESULT') {
-    const line = msg.result.skipped
-      ? `⟳ ${msg.title}`
-      : msg.result.success
-        ? `✓ ${msg.title}${msg.result.warning ? ` (${msg.result.warning})` : ''}`
-        : `✗ ${msg.title}: ${msg.result.error || ''}`;
-    const cls = msg.result.skipped ? 'skip' : msg.result.success ? 'ok' : 'err';
-    appendLog(line, cls);
+    const item = msg.item || {};
+    const videoId = item.videoId || msg.videoId || '';
+    // item.title is the raw YouTube page title (e.g. "Song Name - Artist • YouTube")
+    // item.artist / item.uploader may be set if background enriched it
+    const rawTitle = item.displayTitle || msg.title || '';
+    const uploader = item.uploader || item.artist || '';
 
-    if ((msg.result.success || msg.result.skipped) && msg.item?.sourceMode === 'clipboard' && msg.item?.sourceUrl) {
-      removeClipboardUrl(msg.item.sourceUrl);
+    let artist = uploader;
+    let title = rawTitle || videoId;
+
+    // Only try to parse if we don't already have an artist
+    if (!artist && rawTitle) {
+      if (rawTitle.includes(' — ')) {
+        [artist, title] = rawTitle.split(' — ').map(s => s.trim());
+      } else if (rawTitle.includes(' - ')) {
+        const parts = rawTitle.split(' - ');
+        artist = parts[0].trim();
+        title = parts.slice(1).join(' - ').trim();
+      }
+    }
+
+    const cls = msg.result.skipped ? 'skip' : msg.result.success ? 'ok' : 'err';
+    if (msg.result.skipped) {
+      appendLog({ artist, title, videoId, isSkip: true }, 'skip');
+    } else {
+      appendLog({ artist, title, videoId, error: msg.result.error || '' }, cls);
+    }
+
+    if ((msg.result.success || msg.result.skipped) && item.sourceMode === 'clipboard' && item.sourceUrl) {
+      removeClipboardUrl(item.sourceUrl);
     }
 
     if (msg.result.success || msg.result.skipped || classifyIssueBucket(msg.result.error)) {
       loadDashboardState();
     }
 
-    // Auto-remove completed log line if setting is on
     store.get(['removeCompletedAutomatically']).then(s => {
       if (s.removeCompletedAutomatically && (msg.result.success || msg.result.skipped)) {
-        const last = dlLog.querySelector(`.${cls}:last-child`);
+        const last = dlLog.querySelector('.log-line.ok:last-child, .log-line.skip:last-child');
         if (last) setTimeout(() => last.remove(), 1200);
       }
     });
@@ -1205,14 +1407,6 @@ chrome.runtime.onMessage.addListener(msg => {
     loadDashboardState();
   }
 });
-
-function appendLog(msg, cls = '') {
-  const d = document.createElement('div');
-  if (cls) d.className = cls;
-  d.textContent = msg;
-  dlLog.appendChild(d);
-  dlLog.scrollTop = dlLog.scrollHeight;
-}
 
 // ── RESIZABLE SIDEBAR ────────────────────────────────────────────
 function initResizableSidebar() {
@@ -1303,7 +1497,7 @@ async function init() {
   document.body.classList.toggle('popup-mode', mode !== 'tab' && mode !== 'sidebar');
   document.body.classList.toggle('sidebar-mode', mode === 'sidebar');
 
-  const saved = await store.get(['theme', 'format', 'downloadPath', 'lastFolder', 'defaultFolder', 'downloadMode', 'outputMode']);
+  const saved = await store.get(['theme', 'format', 'downloadPath', 'lastFolder', 'lastFolderVideo', 'defaultFolder', 'downloadMode', 'outputMode', 'audioDownloadFolder', 'videoDownloadFolder', 'useSameOutputPath']);
   await applyInterfaceLanguage();
   applyTheme(saved.theme || 'system');
 
@@ -1314,15 +1508,23 @@ async function init() {
 
   selectedFormat = saved.format || (isAudio ? 'mp3' : 'mp4');
   if (!allValidFmts.includes(selectedFormat)) selectedFormat = isAudio ? 'mp3' : 'mp4';
+
+  // Load clipboard URLs for both modes first, then apply mode
+  await loadClipboardUrls();
   applyOutputMode(outputMode, { persist: false });
 
-  // Instant clipboard refresh when window gains focus
-  window.addEventListener('focus', () => { if (currentMode === 'clipboard') pollClipboard(); });
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && currentMode === 'clipboard') pollClipboard();
-  });
+  // Instant clipboard refresh on focus
+  window.addEventListener('focus', () => pollClipboard());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pollClipboard(); });
+  startClipboardPolling();
 
-  if (saved.downloadPath) {
+  // Load mode-specific path
+  const pathKey = isAudio ? 'audioDownloadFolder' : 'videoDownloadFolder';
+  const modeFolder = (!isAudio && saved.useSameOutputPath) ? saved.audioDownloadFolder : saved[pathKey];
+  if (modeFolder) {
+    pathInput.value = modeFolder;
+    pathInput.classList.add('has-path');
+  } else if (saved.downloadPath) {
     pathInput.value = saved.downloadPath;
     pathInput.classList.add('has-path');
   }
@@ -1333,8 +1535,10 @@ async function init() {
     r();
   }));
 
-  // Use default folder if set, otherwise use last folder
-  const folderToUse = saved.lastFolder || saved.defaultFolder || '';
+  // Restore per-mode bookmark folders
+  modeState.audio.bookmarkFolder = saved.lastFolder || saved.defaultFolder || '';
+  modeState.video.bookmarkFolder = saved.lastFolderVideo || saved.defaultFolder || '';
+  const folderToUse = modeState[outputMode].bookmarkFolder;
   if (folderToUse) {
     folderSel.value = folderToUse;
     if (!folderSel.value) folderSel.selectedIndex = 0;
@@ -1345,8 +1549,6 @@ async function init() {
   // Restore last-used mode
   const modeToUse = saved.downloadMode || 'bookmarks';
   setMode(modeToUse, { persist: false });
-  // Start clipboard polling if mode is clipboard
-  if (modeToUse === 'clipboard') startClipboardPolling();
   updateTotalForCurrentMode();
 
   const qState = await sendRuntimeMessage({ type: 'GET_QUEUE_STATE' }) || {};

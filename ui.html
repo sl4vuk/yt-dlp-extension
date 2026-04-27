@@ -175,26 +175,39 @@
 
     <div class="terminal-column">
     <div class="tab-download-stats" id="tab-download-stats">
-        <button class="tab-stat-card" data-stat-action="downloaded">
+        <button class="tab-stat-card tab-stat-card-showall" data-stat-action="showall" id="stat-card-showall">
           <span class="tab-stat-value" id="stat-downloaded">0</span>
-          <span class="tab-stat-label" data-i18n-mode="text">Downloaded</span>
+          <span class="tab-stat-label">Show all</span>
         </button>
-        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="unavailable">
-          <span class="tab-stat-value" id="stat-unavailable">0</span>
-          <span class="tab-stat-label" data-i18n-mode="text">Unavailable</span>
-        </button>
-        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="ageRestricted">
-          <span class="tab-stat-value" id="stat-ageRestricted">0</span>
-          <span class="tab-stat-label" data-i18n-mode="text">Age restricted</span>
-        </button>
-        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="copyright">
-          <span class="tab-stat-value" id="stat-copyright">0</span>
-          <span class="tab-stat-label" data-i18n-mode="text">Copyright claim</span>
-        </button>
-        <button class="tab-stat-card tab-stat-card-danger" data-stat-action="terminated">
-          <span class="tab-stat-value" id="stat-terminated">0</span>
-          <span class="tab-stat-label" data-i18n-mode="text">Channel terminated</span>
-        </button>
+        <span id="stat-detail-cards" style="display:contents">
+          <button class="tab-stat-card tab-stat-card-danger" data-stat-action="unavailable">
+            <span class="tab-stat-value" id="stat-unavailable">0</span>
+            <span class="tab-stat-label" data-i18n-mode="text">Unavailable</span>
+          </button>
+          <button class="tab-stat-card tab-stat-card-danger" data-stat-action="ageRestricted">
+            <span class="tab-stat-value" id="stat-ageRestricted">0</span>
+            <span class="tab-stat-label" data-i18n-mode="text">Age restricted</span>
+          </button>
+          <button class="tab-stat-card tab-stat-card-danger" data-stat-action="copyright">
+            <span class="tab-stat-value" id="stat-copyright">0</span>
+            <span class="tab-stat-label" data-i18n-mode="text">Copyright claim</span>
+          </button>
+          <button class="tab-stat-card tab-stat-card-danger" data-stat-action="terminated">
+            <span class="tab-stat-value" id="stat-terminated">0</span>
+            <span class="tab-stat-label" data-i18n-mode="text">Channel terminated</span>
+          </button>
+        </span>
+        <!-- Shown when Show All is active (downloaded + failed sub-cards) -->
+        <span id="stat-showall-cards" style="display:none">
+          <button class="tab-stat-card" data-stat-action="downloaded">
+            <span class="tab-stat-value" id="stat-downloaded-sub">0</span>
+            <span class="tab-stat-label">Downloaded</span>
+          </button>
+          <button class="tab-stat-card tab-stat-card-danger" data-stat-action="failed">
+            <span class="tab-stat-value" id="stat-failed-sub">0</span>
+            <span class="tab-stat-label">Failed</span>
+          </button>
+        </span>
     </div>
 
     <section class="terminal-panel" id="terminal-panel">

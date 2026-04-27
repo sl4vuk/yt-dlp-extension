@@ -168,6 +168,7 @@ const DEFAULTS = {
   downloadCookieMode: 'off',
   oauthCookiesText: '',
   clipboardAutoAdd: true,
+  clipboardAutoSwitch: true,
   startDownloadAutomatically: false,
   removeCompletedAutomatically: true,
   simultaneousDownloads: 1,
@@ -181,6 +182,7 @@ const DEFAULTS = {
   preferAv1Codec: false,
   audioDownloadFolder: '',
   videoDownloadFolder: '',
+  useSameOutputPath: false,
   tempFolderMode: 'system',
   tempFolderPath: '',
   audioPlaylistSubfolder: false,
@@ -221,6 +223,12 @@ const DEFAULTS = {
   tagSaveThumbnail: false,
   tagWriteTrackPosition: false,
   tagWritePlaylistAlbum: false,
+  // URL cleaning (cleaner.js)
+  urlCleanTrigger: 'always',      // 'always'|'bookmark'|'download'|'like'|'copy'|'off'
+  urlCleanTargets: 'all',         // comma-joined: 'playlist,timestamps,radio,short,embed' or 'all'
+  // Like shortcut
+  likeShortcutEnabled: true,
+  likeShortcutFolder: '',         // bookmark folder to also save to when liking
   updateCheckMode: 'startup',
 };
 
@@ -270,9 +278,10 @@ const STATIC_SEARCH_ENTRIES = [
 ];
 
 const GENERAL_EXTRA_DEFS = [
-  { key: 'clipboardAutoAdd', type: 'toggle', label: 'Add links from the clipboard automatically', hint: 'Keep watching the clipboard and add YouTube links without pasting manually.', category: 'General' },
-  { key: 'startDownloadAutomatically', type: 'toggle', label: 'Start download automatically', hint: 'Begin downloading immediately when a queue is ready.', category: 'General' },
-  { key: 'removeCompletedAutomatically', type: 'toggle', label: 'Remove completed automatically', hint: 'Clean finished items from the list when the download succeeds.', category: 'General' },
+  { key: 'clipboardAutoAdd',    type: 'toggle', label: 'Add links from the clipboard automatically', hint: 'Watch the clipboard and add YouTube links without pasting manually.', category: 'General' },
+  { key: 'clipboardAutoSwitch', type: 'toggle', label: 'Switch to Clipboard mode on URL copy',       hint: 'Automatically switch the sidebar to Clipboard mode when a YouTube URL is copied.', category: 'General' },
+  { key: 'startDownloadAutomatically',  type: 'toggle', label: 'Start download automatically', hint: 'Begin downloading immediately when a queue is ready.', category: 'General' },
+  { key: 'removeCompletedAutomatically',type: 'toggle', label: 'Remove completed automatically', hint: 'Clean finished items from the list when the download succeeds.', category: 'General' },
 ];
 
 const DOWNLOAD_GROUPS = [
@@ -304,8 +313,9 @@ const DOWNLOAD_GROUPS = [
     hint: 'Where audio and video files are saved.',
     icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
     settings: [
-      { key: 'audioDownloadFolder', type: 'path', label: 'Audio output folder', hint: 'Audio downloads will be saved here.', category: 'Download' },
-      { key: 'videoDownloadFolder', type: 'path', label: 'Video output folder', hint: 'Video downloads will be saved here.', category: 'Download' },
+      { key: 'audioDownloadFolder',   type: 'path',   label: 'Audio output folder',  hint: 'Audio downloads will be saved here.', category: 'Download' },
+      { key: 'videoDownloadFolder',   type: 'path',   label: 'Video output folder',  hint: 'Video downloads will be saved here.', category: 'Download' },
+      { key: 'useSameOutputPath',     type: 'toggle', label: 'Use same path for video', hint: 'Video will use the same folder as audio. Disables the video folder field.', category: 'Download' },
       { key: 'audioPlaylistSubfolder', type: 'toggle', label: 'Subfolder per playlist (audio)', hint: 'Create a subfolder named after the playlist for audio downloads.', category: 'Download' },
       { key: 'videoPlaylistSubfolder', type: 'toggle', label: 'Subfolder per playlist (video)', hint: 'Create a subfolder named after the playlist for video downloads.', category: 'Download' },
       { key: 'tempFolderMode', type: 'select', label: 'Temporary folder', hint: 'Where partial/temp files go during download.', category: 'Download', options: [['system','System temp folder'],['audio','Same as audio folder'],['custom','Custom path']] },
@@ -505,10 +515,10 @@ function renderSetting(def, section) {
 }
 
 // Accordion-based group renderer with icons
-function renderGroup(title, hint, defs, section) {
+function renderGroup(title, hint, defs, section, startOpen = false) {
   const icon = ACCORDION_ICONS[title] || '';
   const arrowSvg = `<svg class="accordion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
-  return `<details class="settings-accordion" open>
+  return `<details class="settings-accordion"${startOpen ? ' open' : ''}>
     <summary class="accordion-summary">
       ${icon}
       <div class="accordion-info">
@@ -525,23 +535,34 @@ function renderGroup(title, hint, defs, section) {
 
 function renderGeneratedSettings() {
   generalExtraSettings.innerHTML = GENERAL_EXTRA_DEFS.map(def => renderSetting(def, 'general')).join('');
-  downloadSettingsContainer.innerHTML = DOWNLOAD_GROUPS.map(group =>
-    renderGroup(group.title, group.hint, group.settings, 'download')
+  // Download groups: only Performance open by default
+  downloadSettingsContainer.innerHTML = DOWNLOAD_GROUPS.map((group, i) =>
+    renderGroup(group.title, group.hint, group.settings, 'download', i === 0)
   ).join('');
-  outputCommonSettings.innerHTML = renderGroup('Common filename rules', 'Naming and skip rules that apply to both audio and video.', OUTPUT_COMMON_DEFS, 'output');
-  outputAudioSettings.innerHTML = renderGroup('Audio', 'Audio naming, format, bitrate, and sample rate.', OUTPUT_AUDIO_DEFS, 'output');
-  outputVideoSettings.innerHTML = renderGroup('Video', 'Video naming, quality, and container format.', OUTPUT_VIDEO_DEFS, 'output');
-  aboutExtraSettings.innerHTML = `${renderGroup('Updates', 'Control how update checks are performed.', ABOUT_EXTRA_DEFS, 'about')}<div class="settings-card update-status-card"><div class="setting-row"><div class="setting-info"><div class="setting-label">Current version</div><div class="setting-hint">You are on the latest version (3.9.19).</div></div><button class="action-btn" type="button" id="check-updates-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Check again</button></div></div>`;
+  outputCommonSettings.innerHTML = renderGroup('Common filename rules', 'Naming and skip rules that apply to both audio and video.', OUTPUT_COMMON_DEFS, 'output', true);
+  outputAudioSettings.innerHTML = renderGroup('Audio', 'Audio naming, format, bitrate, and sample rate.', OUTPUT_AUDIO_DEFS, 'output', true);
+  outputVideoSettings.innerHTML = renderGroup('Video', 'Video naming, quality, and container format.', OUTPUT_VIDEO_DEFS, 'output', true);
+  aboutExtraSettings.innerHTML = `${renderGroup('Updates', 'Control how update checks are performed.', ABOUT_EXTRA_DEFS, 'about', true)}<div class="settings-card update-status-card"><div class="setting-row"><div class="setting-info"><div class="setting-label">Current version</div><div class="setting-hint">You are on the latest version (3.9.19).</div></div><button class="action-btn" type="button" id="check-updates-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Check again</button></div></div>`;
   buildSettingsSearchIndex();
 }
 
 function buildSettingsSearchIndex() {
-  const dynamicEntries = Array.from(document.querySelectorAll('.setting-entry-card')).map(card => ({
-    key: card.dataset.settingKey,
-    title: card.dataset.settingTitle,
-    category: card.dataset.settingCategory,
-    section: card.dataset.settingSection,
-  }));
+  const dynamicEntries = Array.from(document.querySelectorAll('.setting-entry-card')).map(card => {
+    // Walk up to find parent accordion summary for subIcon
+    const accordion = card.closest('details.settings-accordion');
+    let subIcon = '';
+    if (accordion) {
+      const summaryIcon = accordion.querySelector('.accordion-summary > svg:first-child');
+      subIcon = summaryIcon ? summaryIcon.outerHTML : '';
+    }
+    return {
+      key: card.dataset.settingKey,
+      title: card.dataset.settingTitle,
+      category: card.dataset.settingCategory,
+      section: card.dataset.settingSection,
+      subIcon,
+    };
+  });
   settingsSearchIndex = [...STATIC_SEARCH_ENTRIES, ...dynamicEntries].filter(Boolean);
 }
 
@@ -632,14 +653,22 @@ function renderSearchResults(query = '') {
     </button>`;
   }).join('');
 }
+
+// ── LOAD SETTINGS ───────────────────────────────────────────────
 async function loadSettings() {
   const keys = Object.keys(DEFAULTS);
   const saved = await store.get(keys);
 
-  // Bookmark folder tree
+  // Bookmark folder tree — populate both selectors at once
   await new Promise(r => chrome.bookmarks.getTree(tree => {
     defFolderSel.innerHTML = '<option value="">— Select —</option>';
     buildTree(tree, defFolderSel);
+    const likeSelect = document.getElementById('set-like-shortcut-folder');
+    if (likeSelect) {
+      likeSelect.innerHTML = '<option value="">— Same as Bookmark folder —</option>';
+      buildTree(tree, likeSelect);
+      if (saved.likeShortcutFolder) likeSelect.value = saved.likeShortcutFolder;
+    }
     r();
   }));
 
@@ -669,6 +698,28 @@ async function loadSettings() {
   }
 
   applyDynamicSettings(saved);
+
+  // URL clean targets multi-select
+  const urlCleanGroup = document.getElementById('url-clean-targets');
+  if (urlCleanGroup) {
+    const targets = saved.urlCleanTargets || 'all';
+    const list = targets.split(',').map(s => s.trim());
+    urlCleanGroup.querySelectorAll('.url-clean-target').forEach(btn => {
+      btn.classList.toggle('active', list.includes(btn.dataset.target));
+    });
+  }
+
+  // Like shortcut
+  const likeToggle = document.getElementById('set-like-shortcut-enabled');
+  if (likeToggle) likeToggle.checked = saved.likeShortcutEnabled !== false;
+  const likeFolderRow = document.getElementById('like-shortcut-folder-row');
+  if (likeFolderRow) likeFolderRow.style.display = (saved.likeShortcutEnabled !== false) ? '' : 'none';
+  if (tagsEl) {
+    // applyTagsVisibility is defined in initBindings — call after init
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('apply-tags-visibility'));
+    }, 0);
+  }
   renderSearchCategoryFilter();
   renderSearchResults('');
 
@@ -816,6 +867,17 @@ function initBindings() {
   });
 
   document.addEventListener('click', async event => {
+    // Visual radio (vr-opt / vr-icon-opt)
+    const vrBtn = event.target.closest('.vr-opt, .vr-icon-opt');
+    if (vrBtn && vrBtn.dataset.key) {
+      const key = vrBtn.dataset.key;
+      const value = vrBtn.dataset.value;
+      document.querySelectorAll(`.vr-opt[data-key="${key}"], .vr-icon-opt[data-key="${key}"]`).forEach(b => b.classList.remove('active'));
+      vrBtn.classList.add('active');
+      save(key, value);
+      return;
+    }
+
     const browseBtn = event.target.closest('[data-browse-key]');
     if (browseBtn) {
       try {
@@ -862,18 +924,100 @@ function initBindings() {
     }
   });
 
-  // Visual radio click handler
-  document.addEventListener('click', event => {
-    const vrBtn = event.target.closest('.vr-opt, .vr-icon-opt');
-    if (vrBtn && vrBtn.dataset.key) {
-      const key = vrBtn.dataset.key;
-      const value = vrBtn.dataset.value;
-      document.querySelectorAll(`.vr-opt[data-key="${key}"], .vr-icon-opt[data-key="${key}"]`).forEach(b => b.classList.remove('active'));
-      vrBtn.classList.add('active');
-      save(key, value);
-      return;
+  // Tags master switch — show/hide all sub-settings
+  function applyTagsVisibility(enabled) {
+    document.querySelectorAll('.setting-entry-card[data-setting-key]').forEach(card => {
+      const key = card.dataset.settingKey;
+      if (!key || key === 'tagsEnabled') return;
+      const isTagSetting = key.startsWith('tag') && key !== 'tagsEnabled';
+      if (isTagSetting) card.style.display = enabled ? '' : 'none';
+    });
+    // Also toggle accordion openability
+    const tagsAccordion = document.querySelector('details.settings-accordion summary .accordion-title');
+    // find Tags accordion
+    document.querySelectorAll('details.settings-accordion').forEach(d => {
+      const title = d.querySelector('.accordion-title')?.textContent?.trim();
+      if (title === 'Tags') d.querySelector('.accordion-body').style.opacity = enabled ? '' : '.4';
+    });
+  }
+
+  // Custom comment text — only visible when tagCommentMode === 'custom'
+  function applyCustomCommentVisibility() {
+    const commentMode = document.querySelector('.vr-opt[data-key="tagCommentMode"].active')?.dataset.value || DEFAULTS.tagCommentMode;
+    const card = document.getElementById('setting-card-tagCustomComment');
+    if (card) card.style.display = commentMode === 'custom' ? '' : 'none';
+  }
+
+  // Wire tagsEnabled toggle
+  document.addEventListener('change', e => {
+    const el = e.target;
+    if (el.id === 'tagsEnabled' || el.dataset.dynamicKey === 'tagsEnabled') {
+      applyTagsVisibility(el.checked);
     }
   });
+
+  // Wire comment mode vr buttons
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.vr-opt[data-key="tagCommentMode"]');
+    if (btn) setTimeout(applyCustomCommentVisibility, 0);
+  });
+
+  // Initial apply
+  store.get(['tagsEnabled', 'tagCommentMode']).then(s => {
+    applyTagsVisibility(s.tagsEnabled !== false);
+    applyCustomCommentVisibility();
+  });
+  // URL Clean Targets — multi-select with All toggle
+  const urlCleanGroup = document.getElementById('url-clean-targets');
+  function applyUrlCleanTargets(targetStr) {
+    const targets = targetStr ? targetStr.split(',').map(s => s.trim()).filter(Boolean) : ['all'];
+    urlCleanGroup?.querySelectorAll('.url-clean-target').forEach(btn => {
+      btn.classList.toggle('active', targets.includes(btn.dataset.target));
+    });
+  }
+
+  urlCleanGroup?.addEventListener('click', async e => {
+    const btn = e.target.closest('.url-clean-target');
+    if (!btn) return;
+    e.stopPropagation(); // prevent main vr-opt handler from firing
+    const clicked = btn.dataset.target;
+    const stored = await store.get(['urlCleanTargets']);
+    let currentTargets = stored.urlCleanTargets || 'all';
+    let targets = currentTargets.split(',').map(s => s.trim()).filter(Boolean);
+
+    if (clicked === 'all') {
+      targets = ['all'];
+    } else {
+      targets = targets.filter(t => t !== 'all');
+      const idx = targets.indexOf(clicked);
+      if (idx >= 0) targets.splice(idx, 1);
+      else targets.push(clicked);
+      if (!targets.length) targets = ['all'];
+    }
+
+    const val = targets.join(',');
+    applyUrlCleanTargets(val);
+    save('urlCleanTargets', val);
+  }, true); // capture phase — fires before bubble
+
+  // Like shortcut — enable/disable + folder
+  const likeShortcutToggle = document.getElementById('set-like-shortcut-enabled');
+  const likeFolderSelect = document.getElementById('set-like-shortcut-folder');
+  const likeFolderRow = document.getElementById('like-shortcut-folder-row');
+
+  likeShortcutToggle?.addEventListener('change', () => {
+    save('likeShortcutEnabled', likeShortcutToggle.checked);
+    if (likeFolderRow) likeFolderRow.style.display = likeShortcutToggle.checked ? '' : 'none';
+  });
+
+  likeFolderSelect?.addEventListener('change', () => {
+    save('likeShortcutFolder', likeFolderSelect.value);
+    // Sync to defaultFolder so ui.js uses same folder
+    if (likeFolderSelect.value) save('defaultFolder', likeFolderSelect.value);
+  });
+
+  document.getElementById('open-shortcuts-like')?.addEventListener('click', openExtensionShortcutsPage);
+  settingsSearchInput?.addEventListener('input', () => renderSearchResults(settingsSearchInput.value));
   settingsSearchClear?.addEventListener('click', () => {
     settingsSearchInput.value = '';
     renderSearchResults('');
