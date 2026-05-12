@@ -1,158 +1,60 @@
-# YT Bookmark Cleaner v2.4
+# YT Bookmark Cleaner - Universal install guide
 
-Dark/light, borderless, crimson-accented Chrome extension for managing YouTube bookmarks and downloading audio with yt-dlp.
+YT Bookmark Cleaner is a Chrome/Chromium extension that manages YouTube bookmarks and downloads audio/video through a local Native Messaging host.
 
----
+The browser extension cannot download by itself. Chrome talks to `native_host.py`, and that Python host runs `yt-dlp`, `mutagen`, and `ffmpeg`.
 
-## Features
+## Quick install
 
-- **Sync YT ↔ Music** — auto-creates the missing youtube.com or music.youtube.com bookmark for each video, deduplicating by video ID
-- **Export** — TXT, CSV, Netscape HTML
-- **Download with yt-dlp** — m4a (fast, default) or mp3, real progress bar, skips existing files, URL embedded in metadata
-- **Dark / Light mode** — toggle in header, persisted
-- **View modes** — Popup, Window, Tab
-- All settings persisted in chrome.storage.local
+### Windows 10/11
 
----
+1. Extract the extension folder.
+2. Double-click:
 
-## Extension Setup
-
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (toggle in top-right)
-3. Click **Load unpacked** → select this folder
-4. Note your **Extension ID** — you'll need it in the next step  
-   *(looks like `abcdefghijklmnopqrstuvwxyz123456`)*
-
----
-
-## Download Setup (Native Host — required for yt-dlp)
-
-Downloads require a small Python script (`native_host.py`) that Chrome talks to in the background. Without it, the Download button does nothing.
-
----
-
-### Windows (easiest — use the installer)
-
-**Step 1 — Install Python** (if you don't have it)  
-Download from https://www.python.org/downloads/  
-⚠️ Check **"Add Python to PATH"** during installation.
-
-**Step 2 — Run the installer**  
-Double-click `install_windows.bat` in this folder.  
-It will:
-- Install `yt-dlp` automatically
-- Ask you to paste your Extension ID
-- Write and register everything Chrome needs
-
-**Step 3 — Reload the extension**  
-Go to `chrome://extensions` and click the 🔄 reload button on YT Bookmark Cleaner.
-
-**Step 4 — Set the output folder**  
-In the extension, type or paste your full output path into the **Output folder** box, e.g.:
-```
-C:\Users\YourName\Downloads\music
-```
-The path is saved automatically — you only need to type it once.
-
----
-
-### macOS
-
-```bash
-# 1. Install yt-dlp
-pip install yt-dlp
-# or: brew install yt-dlp
-
-# 2. Make host executable
-chmod +x native_host.py
-
-# 3. Edit com.ytbookmark.ytdlp.json:
-#    - Replace /ABSOLUTE/PATH/TO/native_host.py with the real path (use: pwd)
-#    - Replace YOUR_EXTENSION_ID_HERE with your actual Extension ID
-
-# 4. Register
-cp com.ytbookmark.ytdlp.json \
-   ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/
-
-# 5. Reload extension at chrome://extensions
+```bat
+install_windows.bat
 ```
 
----
+The installer will:
 
-### Linux
+- Ignore broken Microsoft Store Python aliases.
+- Install Python with `winget` when Python is missing.
+- Try Python 3.12, 3.11, 3.10, then 3.8.
+- Install `yt-dlp` and `mutagen` with pip.
+- Install `ffmpeg` with `winget` if no bundled `ffmpeg.exe` exists.
+- Copy bundled `ffmpeg.exe` into `bin\ffmpeg.exe` when available.
+- Generate `native_host_launcher.bat`.
+- Generate `com.ytbookmark.ytdlp.json` with the real folder path.
+- Register Chrome, Edge, Chromium, Brave, and Vivaldi native messaging entries when possible.
 
-```bash
-# 1. Install yt-dlp
-pip install yt-dlp
+After install, open:
 
-# 2. Make host executable
-chmod +x native_host.py
-
-# 3. Edit com.ytbookmark.ytdlp.json:
-#    - Replace /ABSOLUTE/PATH/TO/native_host.py with the real path (use: pwd)
-#    - Replace YOUR_EXTENSION_ID_HERE with your actual Extension ID
-
-# 4. Register
-mkdir -p ~/.config/google-chrome/NativeMessagingHosts/
-cp com.ytbookmark.ytdlp.json \
-   ~/.config/google-chrome/NativeMessagingHosts/
-
-# 5. Reload extension at chrome://extensions
+```text
+chrome://extensions
 ```
 
----
+Then click **Reload** on YT Bookmark Cleaner.
 
-## Setting the Output Folder
+### Windows 7 / 8 / 8.1
 
-Due to browser security restrictions, the file picker **cannot return the full path** on Windows. Instead, type or paste the full path directly into the **Output folder** box:
+`winget` usually does not exist on these systems. The script will still try to install Python using the official Python installer fallback.
 
+For old Windows, Python 3.8.x is the safest target. If automatic install fails, manually install Python 3.8.10 and enable:
+
+```text
+Add Python to PATH
 ```
-C:\Users\YourName\Downloads\music
-C:\Users\YourName\Music
+
+Then run:
+
+```bat
+install_windows.bat
 ```
 
-The path is saved automatically and remembered every time you open the extension.
-
----
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Shift+F` | Activate the extension |
-| `Alt+F` | Download current YouTube / YT Music video with yt-dlp |
-
----
-
-## File Naming
-
-Downloaded files are named:
-```
-Song Title [VIDEO_ID].m4a
-```
-The video URL is embedded in the file's comment metadata tag.  
-Files are skipped automatically if a file with that video ID already exists in the output folder.
-
----
-
-## Notes
-
-- The **Sync** button only **adds** missing bookmarks — it never deletes
-- **Undo** reverts the last sync operation
-- Download requires the native host to be set up (see above)
-- If downloads show "Native host not responding", re-run `install_windows.bat` and reload the extension
-
-
----
-
-## Universal installer / repair
-
-Use these files instead of editing `com.ytbookmark.ytdlp.json` manually.
-
-### Windows
-Double-click `install_windows.bat`. It only finds or installs Python; `install_universal.py` does the real work.
+Important: Manifest V3 and `sidePanel` support depend on your browser version. Very old Chrome/Edge builds may not support the current extension APIs.
 
 ### macOS / Linux
+
 Run:
 
 ```bash
@@ -160,20 +62,177 @@ chmod +x install_unix.sh
 ./install_unix.sh
 ```
 
-### Diagnostics
+The Unix installer will try to install missing tools with:
 
-```bash
-python install_universal.py --diagnose
+- macOS: Homebrew, when available.
+- Debian/Ubuntu: `apt-get`.
+- Fedora: `dnf`.
+- CentOS/RHEL: `yum`.
+- Arch: `pacman`.
+- openSUSE: `zypper`.
+- Alpine: `apk`.
+
+It installs or verifies:
+
+- Python 3.8+
+- pip
+- `yt-dlp`
+- `mutagen`
+- `ffmpeg`
+
+## Manual repair
+
+From the extension folder:
+
+### Windows
+
+```bat
+py -3 install_universal.py --repair
+```
+
+If `py` is not available:
+
+```bat
 python install_universal.py --repair
 ```
 
-What was changed:
-- No hardcoded Administrator path. The native host manifest is generated for the current folder.
-- Bundled `bin/ffmpeg.exe` is used automatically on Windows before system PATH.
-- The native host can auto-install missing `yt-dlp` and `mutagen` on first run or through repair.
-- Chrome, Chromium, Edge, Brave and Vivaldi are registered when possible.
+### macOS / Linux
 
-Limits that no extension can bypass:
-- If the native host is not registered at all, the browser extension cannot execute local installers itself. Browsers block that by design. Run the installer once, then in-extension repair can work while the host is reachable.
-- Windows 7/8/8.1 may require Python 3.8.x; newer Python builds may not support those OS versions.
-- Manifest V3 and modern browser support on Windows 7/8/8.1 depends on the browser version.
+```bash
+python3 install_universal.py --repair
+```
+
+## Diagnostics
+
+### Windows
+
+```bat
+py -3 install_universal.py --diagnose
+```
+
+### macOS / Linux
+
+```bash
+python3 install_universal.py --diagnose
+```
+
+## Fixing `Python was not found`
+
+If Windows prints:
+
+```text
+Python was not found; run without arguments to install from the Microsoft Store
+```
+
+that means Windows is launching the Microsoft Store alias, not real Python.
+
+The new `install_windows.bat` avoids that alias by testing Python before using it. If the problem still appears, disable aliases here:
+
+```text
+Settings > Apps > Advanced app settings > App execution aliases
+```
+
+Turn off:
+
+```text
+python.exe
+python3.exe
+```
+
+Then run `install_windows.bat` again.
+
+## Fixing `Native host disconnected`
+
+This usually means the native host path or extension ID is wrong.
+
+Run:
+
+```bat
+install_windows.bat
+```
+
+or:
+
+```bat
+py -3 install_universal.py --repair
+```
+
+Then verify these files exist in the extension folder:
+
+```text
+native_host_launcher.bat
+com.ytbookmark.ytdlp.json
+```
+
+Check the Chrome registry entry:
+
+```bat
+reg query HKCU\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.ytbookmark.ytdlp /ve
+```
+
+It should point to the current folder, not an old path like another user's Desktop or Downloads folder.
+
+## Extension ID
+
+The native host manifest must allow your extension ID.
+
+To find it:
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Copy the ID shown under YT Bookmark Cleaner.
+
+Repair with a specific ID:
+
+```bat
+py -3 install_universal.py --extension-id YOUR_EXTENSION_ID --repair
+```
+
+Example:
+
+```bat
+py -3 install_universal.py --extension-id ilealfnjgomollhdmedilijpfepbkllp --repair
+```
+
+## Output folder
+
+Type or paste a real full path in the extension, for example:
+
+```text
+C:\Users\YourName\Downloads\music
+```
+
+The browser file picker may not return full folder paths due to browser security restrictions.
+
+## Included files
+
+Required extension files:
+
+```text
+manifest.json
+background.js
+ui.html
+ui.js
+ui.css
+settings.html
+settings.js
+settings.css
+cleaner.js
+i18n.js
+native_host.py
+install_universal.py
+install_windows.bat
+install_unix.sh
+```
+
+Optional but recommended on Windows:
+
+```text
+bin\ffmpeg.exe
+```
+
+If `ffmpeg.exe` is in the root folder, `install_windows.bat` copies it into `bin\ffmpeg.exe` automatically.
+
+## What no installer can bypass
+
+A browser extension cannot execute a local installer until the Native Messaging host has already been registered. This is a Chrome/Chromium security rule. Run the installer once manually; after that, the native host can diagnose and repair missing Python packages when reachable.
