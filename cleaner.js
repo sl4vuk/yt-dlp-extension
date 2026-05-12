@@ -1,4 +1,4 @@
-/* cleaner.js — YT Bookmark Cleaner v2.2 */
+/* cleaner.js — YT Bookmark Cleaner v2.7 */
 (() => {
   'use strict';
 
@@ -30,12 +30,10 @@
       const host = u.hostname;
       const all = targets.includes('all');
 
-      // Expand shortened youtu.be
       if ((all || targets.includes('short')) && host === 'youtu.be') {
         const vid = u.pathname.slice(1).split('/')[0];
         if (vid) return `https://www.youtube.com/watch?v=${vid}`;
       }
-      // Expand embed
       if ((all || targets.includes('embed')) && u.pathname.startsWith('/embed/')) {
         const vid = u.pathname.split('/')[2];
         if (vid) u = new URL(`https://www.youtube.com/watch?v=${vid}`);
@@ -65,10 +63,11 @@
   function getSettings() {
     if (cachedSettings) return Promise.resolve(cachedSettings);
     return new Promise(resolve => {
-      chrome.storage.local.get(['urlCleanTrigger', 'urlCleanTargets'], data => {
+      chrome.storage.local.get(['urlCleanTrigger', 'urlCleanTargets', 'interceptYtDownloadBtn'], data => {
         cachedSettings = {
           trigger: data.urlCleanTrigger || 'always',
           targets: (data.urlCleanTargets || 'all').split(',').map(s => s.trim()),
+          interceptYtDownloadBtn: data.interceptYtDownloadBtn !== false, // default ON
         };
         resolve(cachedSettings);
       });
@@ -101,6 +100,112 @@
     }
   }).observe(document, { subtree: true, childList: true });
 
+  // ── YT DOWNLOAD BUTTON INTERCEPT ──────────────────────────────
+  // Replaces the native YT "Download" button click with our extension download.
+  // The button design/appearance is NOT changed — only the click handler is hijacked.
+
+  let ytDownloadInterceptActive = false;
+  let ytDownloadObserver = null;
+
+  function findYtDownloadButtons() {
+    // Match ytd-download-button-renderer buttons and any button with aria-label="Download"
+    // that is NOT our own injected button
+    const candidates = [
+      ...document.querySelectorAll('ytd-download-button-renderer button'),
+      ...document.querySelectorAll('yt-button-shape button[aria-label="Download"]'),
+      ...document.querySelectorAll('ytd-button-renderer button[aria-label="Download"]'),
+    ];
+    // Deduplicate
+    return [...new Set(candidates)];
+  }
+
+  function handleYtDownloadClick(e) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    const vid = extractVideoId(window.location.href);
+    if (!vid) {
+      showToast('❌ No video ID found');
+      return;
+    }
+
+    const url = makeCleanUrl(vid, window.location.href);
+    const title = document.title
+      .replace(/ - YouTube.*$/i, '')
+      .replace(/ - YouTube Music.*$/i, '')
+      .trim();
+
+    showToast('⬇️ Sending to YT Bookmark Cleaner…');
+
+    chrome.runtime.sendMessage({
+      type: 'QUICK_DOWNLOAD',
+      url,
+      title,
+    }, response => {
+      if (chrome.runtime.lastError) {
+        showToast('❌ Extension error: ' + chrome.runtime.lastError.message);
+        return;
+      }
+      if (response && response.ok === false) {
+        showToast('❌ ' + (response.error || 'Download failed'));
+      }
+    });
+  }
+
+  function attachYtDownloadIntercept() {
+    const btns = findYtDownloadButtons();
+    btns.forEach(btn => {
+      // Mark so we don't attach twice
+      if (btn.dataset.ytbcHijacked === '1') return;
+      btn.dataset.ytbcHijacked = '1';
+      // Use capture=true so we fire before YT's own listener
+      btn.addEventListener('click', handleYtDownloadClick, true);
+    });
+  }
+
+  function detachYtDownloadIntercept() {
+    document.querySelectorAll('[data-ytbc-hijacked="1"]').forEach(btn => {
+      btn.removeEventListener('click', handleYtDownloadClick, true);
+      delete btn.dataset.ytbcHijacked;
+    });
+  }
+
+  function resetYtDownloadHijack(enabled) {
+    if (!enabled) {
+      detachYtDownloadIntercept();
+      if (ytDownloadObserver) {
+        ytDownloadObserver.disconnect();
+        ytDownloadObserver = null;
+      }
+      ytDownloadInterceptActive = false;
+      return;
+    }
+    if (ytDownloadInterceptActive) return;
+    ytDownloadInterceptActive = true;
+
+    // Initial attach
+    attachYtDownloadIntercept();
+
+    // Observe DOM for dynamically inserted download buttons (YT is a SPA)
+    ytDownloadObserver = new MutationObserver(() => {
+      attachYtDownloadIntercept();
+    });
+    ytDownloadObserver.observe(document.body, { subtree: true, childList: true });
+  }
+
+  // Init intercept based on stored setting (default ON)
+  chrome.storage.local.get(['interceptYtDownloadBtn'], data => {
+    const enabled = data.interceptYtDownloadBtn !== false;
+    resetYtDownloadHijack(enabled);
+  });
+
+  // React to setting changes in real-time
+  chrome.storage.onChanged.addListener((changes) => {
+    if ('interceptYtDownloadBtn' in changes) {
+      resetYtDownloadHijack(changes.interceptYtDownloadBtn.newValue !== false);
+    }
+  });
+
   // ── LIKE BUTTON ────────────────────────────────────────────────
   function findByXPath(xpath) {
     try {
@@ -112,7 +217,6 @@
     const host = location.hostname;
 
     if (host === 'www.youtube.com') {
-      // Updated XPath from user DOM
       const btn = findByXPath(
         '/html/body/ytd-app/div[1]/ytd-page-manager/ytd-watch-flexy/div[4]/div[1]/div/div[2]/ytd-watch-metadata/div/div[3]/div/div/div/ytd-menu-renderer/div[1]/segmented-like-dislike-button-view-model/yt-smartimation/div/div/like-button-view-model/toggle-button-view-model/button-view-model/button'
       );
@@ -123,7 +227,6 @@
         'segmented-like-dislike-button-view-model button',
         '#top-level-buttons-computed button[aria-label*="like" i]',
         'ytd-menu-renderer button[aria-label*="like" i]',
-        // New YT spec button shape
         '.ytSpecButtonShapeNextSegmentedStart',
         'button[aria-label*="like" i]',
       ];
@@ -134,14 +237,12 @@
     }
 
     if (host === 'music.youtube.com') {
-      // Updated XPath from user DOM
       const btn = findByXPath(
         '/html/body/ytmusic-app/ytmusic-app-layout/ytmusic-player-bar/div[2]/div[3]/ytmusic-like-button-renderer/yt-button-shape[2]/button'
       );
       if (btn) return btn;
 
       const fallbacks = [
-        // New YT Music spec button shape (from provided HTML)
         '.yt-spec-button-shape-next[aria-label="Like"]',
         'ytmusic-like-button-renderer yt-button-shape:last-child button',
         'ytmusic-like-button-renderer button[aria-label*="Like" i]',

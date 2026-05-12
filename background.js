@@ -548,6 +548,14 @@ function handleNativeMessage(msg) {
       pendingDownloads.delete('__open_folder__');
     }
   }
+  if (msg.type === 'health_result') {
+    const p = pendingDownloads.get('__health__');
+    if (p) { p.resolve(msg); pendingDownloads.delete('__health__'); }
+  }
+  if (msg.type === 'repair_result') {
+    const p = pendingDownloads.get('__repair__');
+    if (p) { p.resolve(msg); pendingDownloads.delete('__repair__'); }
+  }
 }
 
 function downloadTrackNative({ url, videoId, title, format, outputPath, cookieMode = 'off', cookieText = '', settings = {} }) {
@@ -640,6 +648,36 @@ function openFolderNative(folderPath) {
         resolve({ ok: false, error: 'Open folder timed out' });
       }
     }, 5000);
+  });
+}
+
+function nativeHealth() {
+  return new Promise(resolve => {
+    const port = getNativePort();
+    if (!port) { resolve({ ok: false, error: 'Native host not installed or not registered.' }); return; }
+    pendingDownloads.set('__health__', { resolve });
+    port.postMessage({ action: 'health' });
+    setTimeout(() => {
+      if (pendingDownloads.has('__health__')) {
+        pendingDownloads.delete('__health__');
+        resolve({ ok: false, error: 'Native host health check timed out' });
+      }
+    }, 15000);
+  });
+}
+
+function nativeRepair() {
+  return new Promise(resolve => {
+    const port = getNativePort();
+    if (!port) { resolve({ ok: false, error: 'Native host not installed. Run install_windows.bat or install_unix.sh first.' }); return; }
+    pendingDownloads.set('__repair__', { resolve });
+    port.postMessage({ action: 'repair' });
+    setTimeout(() => {
+      if (pendingDownloads.has('__repair__')) {
+        pendingDownloads.delete('__repair__');
+        resolve({ ok: false, error: 'Native host repair timed out' });
+      }
+    }, 120000);
   });
 }
 
@@ -909,6 +947,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === 'CAPTURE_YOUTUBE_COOKIES') {
     captureYoutubeCookies().then(reply).catch(replyError);
+    return true;
+  }
+  if (msg.type === 'CHECK_NATIVE_HOST') {
+    nativeHealth().then(reply).catch(replyError);
+    return true;
+  }
+  if (msg.type === 'REPAIR_NATIVE_HOST') {
+    nativeRepair().then(reply).catch(replyError);
     return true;
   }
 

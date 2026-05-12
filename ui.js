@@ -60,6 +60,7 @@ const modePanels = {
   bookmarks: $('mode-bookmarks'),
   files: $('mode-files'),
   clipboard: $('mode-clipboard'),
+  server: $('mode-server'),
 };
 
 // File mode elements
@@ -591,22 +592,109 @@ folderSel.addEventListener('change', async () => {
   refreshTotal(fid);
 });
 
-// ── PATH INPUT ───────────────────────────────────────────────────
 pathInput.addEventListener('change', async () => {
   const val = pathInput.value.trim();
   pathInput.classList.toggle('has-path', !!val);
-  const key = outputMode === 'video' ? 'videoDownloadFolder' : 'audioDownloadFolder';
-  await store.set({ [key]: val, downloadPath: val });
+  if (currentMode === 'server') {
+    const key = outputMode === 'video' ? 'videoServerFolder' : 'audioServerFolder';
+    await store.set({ [key]: val, serverPath: val });
+  } else {
+    const key = outputMode === 'video' ? 'videoDownloadFolder' : 'audioDownloadFolder';
+    await store.set({ [key]: val, downloadPath: val });
+  }
 });
 pathInput.addEventListener('input', () => {
   clearTimeout(pathSaveTimer);
   pathSaveTimer = setTimeout(async () => {
     const val = pathInput.value.trim();
     pathInput.classList.toggle('has-path', !!val);
-    const key = outputMode === 'video' ? 'videoDownloadFolder' : 'audioDownloadFolder';
-    await store.set({ [key]: val, downloadPath: val });
+    if (currentMode === 'server') {
+      const key = outputMode === 'video' ? 'videoServerFolder' : 'audioServerFolder';
+      await store.set({ [key]: val, serverPath: val });
+    } else {
+      const key = outputMode === 'video' ? 'videoDownloadFolder' : 'audioDownloadFolder';
+      await store.set({ [key]: val, downloadPath: val });
+    }
   }, 600);
 });
+
+// ── SERVER MODE LISTENERS ────────────────────────────────────────
+const serverIp = $('server-ip');
+const serverPort = $('server-port');
+const serverUser = $('server-user');
+const serverPassword = $('server-password');
+const serverAuthAccordion = $('server-auth-accordion');
+
+// ── AES-GCM password encryption helpers ──────────────────────────
+// Key is derived from a fixed app-specific salt stored in extension storage.
+// This is NOT end-to-end crypto but prevents plain-text storage on disk.
+async function getOrCreateEncKey() {
+  const stored = await store.get(['_encKeyRaw']);
+  let raw = stored._encKeyRaw;
+  if (!raw) {
+    const keyBytes = crypto.getRandomValues(new Uint8Array(32));
+    raw = Array.from(keyBytes);
+    await store.set({ _encKeyRaw: raw });
+  }
+  return await crypto.subtle.importKey(
+    'raw', new Uint8Array(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptPassword(plain) {
+  if (!plain) return '';
+  try {
+    const key = await getOrCreateEncKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      new TextEncoder().encode(plain)
+    );
+    const buf = new Uint8Array(enc);
+    // Store as base64: iv(12 bytes) + ciphertext
+    const combined = new Uint8Array(12 + buf.length);
+    combined.set(iv, 0);
+    combined.set(buf, 12);
+    return btoa(String.fromCharCode(...combined));
+  } catch { return ''; }
+}
+
+async function decryptPassword(b64) {
+  if (!b64) return '';
+  try {
+    const key = await getOrCreateEncKey();
+    const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const iv = combined.slice(0, 12);
+    const data = combined.slice(12);
+    const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+    return new TextDecoder().decode(dec);
+  } catch { return ''; }
+}
+
+if (serverIp) serverIp.addEventListener('change', () => store.set({ serverIp: serverIp.value }));
+if (serverPort) serverPort.addEventListener('change', () => store.set({ serverPort: serverPort.value }));
+if (serverUser) serverUser.addEventListener('change', () => store.set({ serverUser: serverUser.value }));
+if (serverPassword) {
+  serverPassword.addEventListener('change', async () => {
+    const encrypted = await encryptPassword(serverPassword.value);
+    store.set({ serverPasswordEnc: encrypted });
+  });
+}
+if (serverAuthAccordion) serverAuthAccordion.addEventListener('toggle', () => store.set({ serverAuthEnabled: serverAuthAccordion.open }));
+
+// Password show/hide toggle
+const serverPwdToggle = $('server-password-toggle');
+const serverPwdEyeShow = $('server-pwd-eye-show');
+const serverPwdEyeHide = $('server-pwd-eye-hide');
+if (serverPwdToggle && serverPassword) {
+  serverPwdToggle.addEventListener('click', () => {
+    const isPassword = serverPassword.type === 'password';
+    serverPassword.type = isPassword ? 'text' : 'password';
+    if (serverPwdEyeShow) serverPwdEyeShow.style.display = isPassword ? 'none' : '';
+    if (serverPwdEyeHide) serverPwdEyeHide.style.display = isPassword ? '' : 'none';
+  });
+}
 
 pathBrowse.addEventListener('click', async () => {
   try {
@@ -660,7 +748,7 @@ function setMode(mode, { persist = true } = {}) {
   currentMode = mode;
   modeBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   Object.entries(modePanels).forEach(([k, panel]) => {
-    panel.classList.toggle('active', k === mode);
+    if (panel) panel.classList.toggle('active', k === mode);
   });
   updateTotalForCurrentMode();
   const isBookmarks = mode === 'bookmarks';
@@ -672,6 +760,42 @@ function setMode(mode, { persist = true } = {}) {
   const syncStats = $('sync-stats');
   if (syncStats) syncStats.style.display = isBookmarks ? '' : 'none';
   if (persist) store.set({ downloadMode: mode });
+
+  // Output Server UI change
+  const outputFolderLabel = $('output-folder-label');
+  const pathBrowse = $('path-browse');
+  if (mode === 'server') {
+    if (outputFolderLabel) outputFolderLabel.textContent = 'Output server';
+    if (pathInput) pathInput.placeholder = 'ruta donde se mandaran las canciones, en el servidor';
+    if (pathBrowse) pathBrowse.style.display = 'none';
+    
+    // load serverOutput from modeState or store
+    const key = outputMode === 'video' ? 'videoServerFolder' : 'audioServerFolder';
+    store.get([key]).then(s => {
+      if (pathInput) {
+        pathInput.value = s[key] || '';
+        pathInput.classList.toggle('has-path', !!pathInput.value);
+      }
+    });
+  } else {
+    if (outputFolderLabel) outputFolderLabel.textContent = 'Output folder';
+    if (pathInput) pathInput.placeholder = 'C:\\Users\\you\\Music  or  /home/you/Music';
+    if (pathBrowse) pathBrowse.style.display = '';
+    
+    const key = outputMode === 'video' ? 'videoDownloadFolder' : 'audioDownloadFolder';
+    store.get([key, 'useSameOutputPath', 'audioDownloadFolder']).then(s => {
+      let p = '';
+      if (outputMode === 'video' && s.useSameOutputPath) {
+        p = s.audioDownloadFolder || '';
+      } else {
+        p = s[key] || '';
+      }
+      if (pathInput) {
+        pathInput.value = p;
+        pathInput.classList.toggle('has-path', !!p);
+      }
+    });
+  }
 }
 
 // ── FILE MODE ────────────────────────────────────────────────────
@@ -1546,6 +1670,27 @@ async function init() {
 
   loadClipboardUrls();
 
+  // Restore Server Mode inputs
+  store.get(['serverIp', 'serverPort', 'serverUser', 'serverPasswordEnc', 'serverPassword', 'serverAuthEnabled']).then(async s => {
+    if (serverIp && s.serverIp) serverIp.value = s.serverIp;
+    if (serverPort && s.serverPort) serverPort.value = s.serverPort;
+    if (serverUser && s.serverUser) serverUser.value = s.serverUser;
+    if (serverPassword) {
+      // Prefer new encrypted field; fall back to legacy plain if migration needed
+      const enc = s.serverPasswordEnc;
+      if (enc) {
+        const plain = await decryptPassword(enc);
+        serverPassword.value = plain;
+      } else if (s.serverPassword) {
+        // Migrate legacy plain-text → encrypted
+        serverPassword.value = s.serverPassword;
+        const encrypted = await encryptPassword(s.serverPassword);
+        store.set({ serverPasswordEnc: encrypted, serverPassword: '' });
+      }
+    }
+    if (serverAuthAccordion && s.serverAuthEnabled) serverAuthAccordion.open = true;
+  });
+
   // Restore last-used mode
   const modeToUse = saved.downloadMode || 'bookmarks';
   setMode(modeToUse, { persist: false });
@@ -1570,6 +1715,11 @@ async function init() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if (changes.theme) applyTheme(changes.theme.newValue);
+    if (changes.panelMode) {
+      const mode = changes.panelMode.newValue || 'popup';
+      document.body.classList.toggle('popup-mode', mode === 'popup');
+      document.body.classList.toggle('sidebar-mode', mode === 'sidebar');
+    }
     if (changes.showExport || changes.autoSync) applySettings();
     if (changes.outputMode) {
       applyOutputMode(changes.outputMode.newValue || 'audio', { persist: false });

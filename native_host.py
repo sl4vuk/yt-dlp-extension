@@ -13,6 +13,9 @@ import re
 import glob
 import webbrowser
 import tempfile
+import shutil
+import platform
+import time
 
 try:
     import msvcrt
@@ -24,6 +27,134 @@ except Exception:
 ACTIVE_PROC = None
 ACTIVE_VIDEO_ID = None
 ACTIVE_OUTPUT_PATH = None
+
+
+HOST_DIR = os.path.abspath(os.path.dirname(__file__))
+BIN_DIR = os.path.join(HOST_DIR, "bin")
+LOG_FILE = os.path.join(HOST_DIR, "native_host.log")
+
+def log_debug(message):
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S") + " " + str(message) + "\n")
+    except Exception:
+        pass
+
+def configure_runtime_environment():
+    paths = []
+    if os.path.isdir(BIN_DIR):
+        paths.append(BIN_DIR)
+    old_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = os.pathsep.join(paths + [old_path]) if paths else old_path
+
+def run_quiet(args, timeout=20):
+    try:
+        return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
+    except Exception as e:
+        class R:
+            returncode = 999
+            stdout = ""
+            stderr = str(e)
+        return R()
+
+def import_ok(module_name):
+    try:
+        __import__(module_name)
+        return True
+    except Exception:
+        return False
+
+def ensure_pip():
+    r = run_quiet([sys.executable, "-m", "pip", "--version"], timeout=20)
+    if r.returncode == 0:
+        return True, None
+    r = run_quiet([sys.executable, "-m", "ensurepip", "--upgrade"], timeout=120)
+    if r.returncode == 0:
+        return True, None
+    return False, (r.stderr or r.stdout or "pip is not available")
+
+def pip_install(packages):
+    ok, err = ensure_pip()
+    if not ok:
+        return False, err
+    for user_flag in (True, False):
+        cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
+        if user_flag:
+            cmd.append("--user")
+        cmd += list(packages)
+        r = run_quiet(cmd, timeout=900)
+        if r.returncode == 0:
+            return True, None
+    return False, (r.stderr or r.stdout or "pip install failed")
+
+def ensure_runtime_dependencies(auto_install=True):
+    missing = []
+    if not import_ok("yt_dlp"):
+        missing.append("yt-dlp")
+    if not import_ok("mutagen"):
+        missing.append("mutagen")
+    if not missing:
+        return True, []
+    if not auto_install:
+        return False, missing
+    ok, err = pip_install(missing)
+    if not ok:
+        log_debug("dependency install failed: " + str(err))
+        return False, missing
+    still = []
+    if not import_ok("yt_dlp"):
+        still.append("yt-dlp")
+    if not import_ok("mutagen"):
+        still.append("mutagen")
+    return not still, still
+
+def find_executable(names):
+    for name in names:
+        p = shutil.which(name)
+        if p:
+            return p
+    return None
+
+def get_local_ffmpeg():
+    names = ["ffmpeg.exe"] if sys.platform.startswith("win") else ["ffmpeg"]
+    for name in names:
+        for folder in (BIN_DIR, HOST_DIR):
+            p = os.path.join(folder, name)
+            if os.path.isfile(p):
+                return p
+    return None
+
+def get_ffmpeg_location():
+    local = get_local_ffmpeg()
+    if local:
+        return os.path.dirname(local)
+    exe = find_executable(["ffmpeg.exe", "ffmpeg"])
+    if exe:
+        return os.path.dirname(exe)
+    return None
+
+def has_ffmpeg():
+    loc = get_ffmpeg_location()
+    if not loc:
+        return False
+    exe = os.path.join(loc, "ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg")
+    if not os.path.isfile(exe):
+        exe = "ffmpeg"
+    try:
+        r = subprocess.run([exe, "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+def native_health():
+    deps_ok, missing = ensure_runtime_dependencies(auto_install=False)
+    ffmpeg_loc = get_ffmpeg_location()
+    send_message({"type":"health_result","ok":bool(deps_ok and ffmpeg_loc),"python":sys.executable,"pythonVersion":platform.python_version(),"hostDir":HOST_DIR,"ytDlp":import_ok("yt_dlp"),"mutagen":import_ok("mutagen"),"missing":missing,"ffmpeg":bool(ffmpeg_loc),"ffmpegLocation":ffmpeg_loc or ""})
+
+def native_repair():
+    deps_ok, missing = ensure_runtime_dependencies(auto_install=True)
+    send_message({"type":"repair_result","ok":bool(deps_ok),"python":sys.executable,"ytDlp":import_ok("yt_dlp"),"mutagen":import_ok("mutagen"),"missing":missing,"ffmpeg":has_ffmpeg(),"ffmpegLocation":get_ffmpeg_location() or ""})
+
 
 
 def configure_stdio_binary_mode():
@@ -229,13 +360,6 @@ def cancel_active_download():
                 pass
 
 
-def has_ffmpeg():
-    for candidate in ("ffmpeg", "ffprobe"):
-        try:
-            subprocess.run([candidate, "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except FileNotFoundError:
-            return False
-    return True
 
 
 def build_output_template(folder, filename_template, delimiter, add_number, remove_emoji, title=None):
@@ -304,6 +428,11 @@ def download(msg):
     audio_bitrate    = msg.get("audioBitrate", "192")
     audio_samplerate = msg.get("audioSampleRate", "44100")
 
+    deps_ok, deps_missing = ensure_runtime_dependencies(auto_install=True)
+    if not deps_ok:
+        send_message({"type": "error", "videoId": video_id, "error": "Missing Python dependencies: " + ", ".join(deps_missing) + ". Run install_universal.py --repair"})
+        return
+
     os.makedirs(out_path, exist_ok=True)
 
     if check_exists(out_path, video_id):
@@ -323,6 +452,10 @@ def download(msg):
         "--progress",
         "--output", output_template,
     ]
+
+    ffmpeg_location = get_ffmpeg_location()
+    if ffmpeg_location:
+        cmd += ["--ffmpeg-location", ffmpeg_location]
 
     # ── Skip if already downloaded ───────────────────────────────
     if skip_if_exists:
@@ -582,6 +715,10 @@ def main():
             resolve_path(msg.get("folderName", ""))
         elif action == "open_folder":
             open_folder(msg.get("folderPath", ""))
+        elif action == "health":
+            native_health()
+        elif action == "repair":
+            native_repair()
         elif action == "cancel":
             cancel_active_download()
             if ACTIVE_OUTPUT_PATH and ACTIVE_VIDEO_ID:
@@ -589,5 +726,6 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_runtime_environment()
     configure_stdio_binary_mode()
     main()

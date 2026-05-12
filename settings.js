@@ -157,6 +157,7 @@ const DEFAULTS = {
   autoSync: false,
   showExport: false,
   quickDownloadEnabled: true,
+  downloadShortcutEnabled: true,
   downloadPath: '',
   panelMode: 'sidebar',
   theme: 'system',
@@ -230,6 +231,8 @@ const DEFAULTS = {
   likeShortcutEnabled: true,
   likeShortcutFolder: '',         // bookmark folder to also save to when liking
   updateCheckMode: 'startup',
+  // YT native button intercept
+  interceptYtDownloadBtn: true,   // Replace YT's Download button with extension download
 };
 
 // ── SECTION ICONS (SVG strings for search results) ──────────────
@@ -282,6 +285,7 @@ const GENERAL_EXTRA_DEFS = [
   { key: 'clipboardAutoSwitch', type: 'toggle', label: 'Switch to Clipboard mode on URL copy',       hint: 'Automatically switch the sidebar to Clipboard mode when a YouTube URL is copied.', category: 'General' },
   { key: 'startDownloadAutomatically',  type: 'toggle', label: 'Start download automatically', hint: 'Begin downloading immediately when a queue is ready.', category: 'General' },
   { key: 'removeCompletedAutomatically',type: 'toggle', label: 'Remove completed automatically', hint: 'Clean finished items from the list when the download succeeds.', category: 'General' },
+  { key: 'interceptYtDownloadBtn', type: 'toggle', label: 'Intercept YouTube Download button', hint: 'Replace the native YouTube "Download" button with the extension downloader. The button appearance stays the same — only its action changes.', category: 'General' },
 ];
 
 const DOWNLOAD_GROUPS = [
@@ -617,6 +621,17 @@ function renderSearchCategoryFilter() {
       renderSearchResults(settingsSearchInput?.value || '');
     });
   });
+
+  if (settingsSearchClear && settingsSearchInput) {
+    settingsSearchClear.addEventListener('click', () => {
+      settingsSearchInput.value = '';
+      renderSearchResults('');
+      settingsSearchInput.focus();
+    });
+    settingsSearchInput.addEventListener('input', () => {
+      renderSearchResults(settingsSearchInput.value);
+    });
+  }
 }
 
 function renderSearchResults(query = '') {
@@ -714,7 +729,18 @@ async function loadSettings() {
   if (likeToggle) likeToggle.checked = saved.likeShortcutEnabled !== false;
   const likeFolderRow = document.getElementById('like-shortcut-folder-row');
   if (likeFolderRow) likeFolderRow.style.display = (saved.likeShortcutEnabled !== false) ? '' : 'none';
-  if (tagsEl) {
+  
+  // Download shortcut toggle
+  const downToggle = document.getElementById('set-download-shortcut-enabled');
+  if (downToggle) downToggle.checked = saved.downloadShortcutEnabled !== false;
+
+  document.querySelectorAll('.shortcut-open-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+    });
+  });
+
+  if (typeof tagsEl !== 'undefined' && tagsEl) {
     // applyTagsVisibility is defined in initBindings — call after init
     setTimeout(() => {
       document.dispatchEvent(new CustomEvent('apply-tags-visibility'));
@@ -763,6 +789,16 @@ function initBindings() {
       });
     });
   });
+
+  const likeToggle = document.getElementById('set-like-shortcut-enabled');
+  if (likeToggle) {
+    likeToggle.addEventListener('change', () => save('likeShortcutEnabled', likeToggle.checked));
+  }
+
+  const downToggle = document.getElementById('set-download-shortcut-enabled');
+  if (downToggle) {
+    downToggle.addEventListener('change', () => save('downloadShortcutEnabled', downToggle.checked));
+  }
 
   if (interfaceLanguageTrigger) {
     interfaceLanguageTrigger.addEventListener('click', () => {

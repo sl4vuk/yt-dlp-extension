@@ -141,3 +141,39 @@ Files are skipped automatically if a file with that video ID already exists in t
 - **Undo** reverts the last sync operation
 - Download requires the native host to be set up (see above)
 - If downloads show "Native host not responding", re-run `install_windows.bat` and reload the extension
+
+
+---
+
+## Universal installer / repair
+
+Use these files instead of editing `com.ytbookmark.ytdlp.json` manually.
+
+### Windows
+Double-click `install_windows.bat`. It only finds or installs Python; `install_universal.py` does the real work.
+
+### macOS / Linux
+Run:
+
+```bash
+chmod +x install_unix.sh
+./install_unix.sh
+```
+
+### Diagnostics
+
+```bash
+python install_universal.py --diagnose
+python install_universal.py --repair
+```
+
+What was changed:
+- No hardcoded Administrator path. The native host manifest is generated for the current folder.
+- Bundled `bin/ffmpeg.exe` is used automatically on Windows before system PATH.
+- The native host can auto-install missing `yt-dlp` and `mutagen` on first run or through repair.
+- Chrome, Chromium, Edge, Brave and Vivaldi are registered when possible.
+
+Limits that no extension can bypass:
+- If the native host is not registered at all, the browser extension cannot execute local installers itself. Browsers block that by design. Run the installer once, then in-extension repair can work while the host is reachable.
+- Windows 7/8/8.1 may require Python 3.8.x; newer Python builds may not support those OS versions.
+- Manifest V3 and modern browser support on Windows 7/8/8.1 depends on the browser version.
