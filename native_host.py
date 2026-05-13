@@ -427,6 +427,19 @@ def download(msg):
     filename_tpl     = msg.get("filenameTemplate", "artist-title")
     audio_bitrate    = msg.get("audioBitrate", "192")
     audio_samplerate = msg.get("audioSampleRate", "44100")
+    # New codec / quality settings
+    audio_source_codec   = msg.get("audioSourceCodec", "auto")      # auto | opus | m4a
+    audio_bitrate_preset = msg.get("audioBitratePreset", "192")     # best | 320 | 192 | 128 | 64 | 32
+    video_codec_pref     = msg.get("videoCodecPreference", "h264")  # h264 | vp9 | h265 | av1
+    video_quality_preset = msg.get("videoQualityPreset", "best")    # best | 2160 | 1440 | 1080 | 720 | 480 | 360 | worst
+    video_audio_codec    = msg.get("videoAudioCodec", "auto")       # auto | m4a | opus
+    video_audio_bitrate  = msg.get("videoAudioBitrate", "192")      # best | 192 | 128 | 64 | 32
+
+    # Resolve effective audio bitrate (preset takes priority if set)
+    if audio_bitrate_preset and audio_bitrate_preset != "best":
+        audio_bitrate = audio_bitrate_preset
+    elif audio_bitrate_preset == "best":
+        audio_bitrate = "0"
 
     deps_ok, deps_missing = ensure_runtime_dependencies(auto_install=True)
     if not deps_ok:
@@ -475,36 +488,111 @@ def download(msg):
         cmd += ["--sleep-interval", "1", "--max-sleep-interval", "5"]
 
     # ── Format / conversion ──────────────────────────────────────
-    if fmt == "mp3":
-        if ffmpeg_ok:
-            cmd += ["--extract-audio", "--audio-format", "mp3",
-                    "--audio-quality", f"{audio_bitrate}k",
-                    "--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+    is_audio_fmt = fmt in ("mp3", "ogg", "wav", "m4a", "original-m4a", "opus", "fast", "")
+
+    if is_audio_fmt:
+        # Pick source stream based on audioSourceCodec preference
+        if audio_source_codec == "opus":
+            source_selector = "bestaudio[acodec=opus]/bestaudio"
+        elif audio_source_codec == "m4a":
+            source_selector = "bestaudio[ext=m4a]/bestaudio"
         else:
-            cmd += ["--format", "bestaudio/best"]
-    elif fmt == "ogg":
-        if ffmpeg_ok:
-            cmd += ["--extract-audio", "--audio-format", "vorbis",
-                    "--audio-quality", "5",
-                    "--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+            source_selector = "bestaudio/best"
+
+        if fmt == "mp3":
+            if ffmpeg_ok:
+                bitrate_arg = "0" if audio_bitrate in ("best", "0") else f"{audio_bitrate}k"
+                cmd += ["--extract-audio", "--audio-format", "mp3",
+                        "--audio-quality", bitrate_arg]
+                if audio_samplerate:
+                    cmd += ["--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+            else:
+                cmd += ["--format", source_selector]
+
+        elif fmt == "ogg":
+            if ffmpeg_ok:
+                cmd += ["--extract-audio", "--audio-format", "vorbis"]
+                if audio_bitrate not in ("best", "0", ""):
+                    cmd += ["--audio-quality", f"{audio_bitrate}k"]
+                if audio_samplerate:
+                    cmd += ["--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+            else:
+                cmd += ["--format", source_selector]
+
+        elif fmt == "wav":
+            if ffmpeg_ok:
+                cmd += ["--extract-audio", "--audio-format", "wav"]
+                if audio_samplerate:
+                    cmd += ["--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
+            else:
+                cmd += ["--format", source_selector]
+
+        elif fmt == "opus":
+            if ffmpeg_ok:
+                cmd += ["--extract-audio", "--audio-format", "opus"]
+                if audio_bitrate not in ("best", "0", ""):
+                    cmd += ["--audio-quality", f"{audio_bitrate}k"]
+            else:
+                cmd += ["--format", "bestaudio[acodec=opus]/bestaudio"]
+
+        elif fmt in ("m4a", "original-m4a"):
+            cmd += ["--format", "bestaudio[ext=m4a]/bestaudio"]
+
         else:
-            cmd += ["--format", "bestaudio/best"]
-    elif fmt == "wav":
-        if ffmpeg_ok:
-            cmd += ["--extract-audio", "--audio-format", "wav",
-                    "--postprocessor-args", f"ffmpeg:-ar {audio_samplerate}"]
-        else:
-            cmd += ["--format", "bestaudio/best"]
-    elif fmt in ("m4a", "original-m4a"):
-        cmd += ["--format", "bestaudio[ext=m4a]/bestaudio"]
-    elif fmt == "mp4":
-        cmd += ["--format", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"]
-    elif fmt == "webm":
-        cmd += ["--format", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best"]
-    elif fmt == "flv":
-        cmd += ["--format", "bestvideo[ext=flv]+bestaudio/best"]
+            cmd += ["--format", source_selector]
+
     else:
-        cmd += ["--format", "bestaudio/best"]
+        # Video formats — build format selector from codec + quality + audio preferences
+        CODEC_VCODEC = {
+            "h264": "avc1",
+            "vp9":  "vp9",
+            "h265": "hev1",
+            "av1":  "av01",
+        }
+        vcodec_id = CODEC_VCODEC.get(video_codec_pref, "avc1")
+
+        if video_quality_preset == "best":
+            height_filter = ""
+        elif video_quality_preset == "worst":
+            height_filter = "[height<=144]"
+        else:
+            height_filter = f"[height<={video_quality_preset}]"
+
+        if video_audio_codec == "opus":
+            audio_filter = "[acodec=opus]"
+        elif video_audio_codec == "m4a":
+            audio_filter = "[ext=m4a]"
+        else:
+            audio_filter = ""
+
+        if video_audio_bitrate not in ("best", ""):
+            abr_filter = f"[abr<={video_audio_bitrate}]"
+        else:
+            abr_filter = ""
+
+        best_video  = f"bestvideo[vcodec~='{vcodec_id}']{height_filter}"
+        best_audio  = f"bestaudio{audio_filter}{abr_filter}"
+        fallback_v  = f"bestvideo{height_filter}"
+        fallback_a  = "bestaudio"
+
+        if fmt == "mp4":
+            fmt_sel = (
+                f"{best_video}[ext=mp4]+{best_audio}/"
+                f"{fallback_v}[ext=mp4]+{fallback_a}/"
+                "best[ext=mp4]/best"
+            )
+        elif fmt == "webm":
+            fmt_sel = (
+                f"{best_video}[ext=webm]+{best_audio}/"
+                f"{fallback_v}[ext=webm]+{fallback_a}/"
+                "best[ext=webm]/best"
+            )
+        elif fmt == "flv":
+            fmt_sel = f"{best_video}[ext=flv]+{fallback_a}/best"
+        else:
+            fmt_sel = f"{best_video}+{best_audio}/{fallback_v}+{fallback_a}/best"
+
+        cmd += ["--format", fmt_sel]
 
     # ── Tags / Metadata ──────────────────────────────────────────
     if tags_enabled:
@@ -702,6 +790,100 @@ def open_folder(folder_path):
             send_message({"type": "open_folder_result", "ok": False, "error": str(e)})
 
 
+def _run_git(repo_path, args, timeout=60):
+    return run_quiet(["git", "-C", repo_path] + list(args), timeout=timeout)
+
+
+def _safe_abs_path(path):
+    path = os.path.expanduser(path or "")
+    if not path:
+        path = HOST_DIR
+    return os.path.abspath(path)
+
+
+def _read_manifest_version(repo_path):
+    manifest_path = os.path.join(repo_path, "manifest.json")
+    if not os.path.isfile(manifest_path):
+        return ""
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return str(data.get("version", ""))
+    except Exception:
+        return ""
+
+
+def _is_local_remote(remote):
+    if not remote:
+        return True
+    value = remote.strip()
+    if value.startswith("file://"):
+        return True
+    if re.match(r"^[a-zA-Z]:[\\/]", value):
+        return True
+    if value.startswith("/") or value.startswith("./") or value.startswith("../") or value.startswith("~"):
+        return True
+    if "://" not in value and not re.match(r"^[\w.-]+@", value):
+        return True
+    return False
+
+
+def local_update(msg):
+    request_id = msg.get("requestId", "")
+    mode = msg.get("mode", "status")
+    repo_path = _safe_abs_path(msg.get("repoPath", ""))
+
+    def result(**kw):
+        payload = {"type": "local_update_result", "requestId": request_id, "mode": mode, "repoPath": repo_path}
+        payload.update(kw)
+        send_message(payload)
+
+    if not os.path.isdir(repo_path):
+        result(ok=False, error="Repository path does not exist")
+        return
+
+    if not os.path.isfile(os.path.join(repo_path, "manifest.json")):
+        result(ok=False, error="manifest.json was not found in this folder")
+        return
+
+    inside = _run_git(repo_path, ["rev-parse", "--is-inside-work-tree"], timeout=10)
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        result(ok=False, error="This folder is not a Git working tree", stderr=inside.stderr)
+        return
+
+    branch = _run_git(repo_path, ["rev-parse", "--abbrev-ref", "HEAD"], timeout=10).stdout.strip()
+    before = _run_git(repo_path, ["rev-parse", "--short", "HEAD"], timeout=10).stdout.strip()
+    remote_res = _run_git(repo_path, ["remote", "get-url", "origin"], timeout=10)
+    remote = remote_res.stdout.strip() if remote_res.returncode == 0 else ""
+    remote_is_local = _is_local_remote(remote)
+    version = _read_manifest_version(repo_path)
+    status_res = _run_git(repo_path, ["status", "--short"], timeout=20)
+    changed = [line for line in status_res.stdout.splitlines() if line.strip()]
+
+    if mode == "status":
+        result(ok=True, branch=branch, before=before, after=before, remote=remote, remoteIsLocal=remote_is_local, version=version, changedFiles=changed, stdout=status_res.stdout, stderr=status_res.stderr)
+        return
+
+    if mode != "pull":
+        result(ok=False, error="Unsupported local update mode")
+        return
+
+    if remote and not remote_is_local:
+        result(ok=False, branch=branch, before=before, remote=remote, remoteIsLocal=False, version=version, changedFiles=changed, error="Blocked: origin is not local. Use a filesystem path or file:// remote for all-local updates.")
+        return
+
+    if not remote:
+        result(ok=False, branch=branch, before=before, remote=remote, remoteIsLocal=True, version=version, changedFiles=changed, error="No origin remote configured. Update this repo folder manually, then click Reload extension.")
+        return
+
+    pull = _run_git(repo_path, ["pull", "--ff-only"], timeout=120)
+    after = _run_git(repo_path, ["rev-parse", "--short", "HEAD"], timeout=10).stdout.strip()
+    version_after = _read_manifest_version(repo_path)
+    status_after = _run_git(repo_path, ["status", "--short"], timeout=20)
+    changed_after = [line for line in status_after.stdout.splitlines() if line.strip()]
+    result(ok=pull.returncode == 0, branch=branch, before=before, after=after, remote=remote, remoteIsLocal=True, version=version_after, changedFiles=changed_after, stdout=pull.stdout, stderr=pull.stderr, error=None if pull.returncode == 0 else "git pull --ff-only failed")
+
+
 def main():
     while True:
         msg = read_message()
@@ -719,6 +901,8 @@ def main():
             native_health()
         elif action == "repair":
             native_repair()
+        elif action == "local_update":
+            local_update(msg)
         elif action == "cancel":
             cancel_active_download()
             if ACTIVE_OUTPUT_PATH and ACTIVE_VIDEO_ID:

@@ -482,6 +482,7 @@ async function syncFolder(folderId, sendResponse) {
 // ── NATIVE MESSAGING (yt-dlp) ─────────────────────────────────────
 let nativePort = null;
 const pendingDownloads = new Map();
+const LOCAL_UPDATE_TIMEOUT_MS = 120000;
 
 function getNativePort() {
   if (nativePort) return nativePort;
@@ -555,6 +556,11 @@ function handleNativeMessage(msg) {
   if (msg.type === 'repair_result') {
     const p = pendingDownloads.get('__repair__');
     if (p) { p.resolve(msg); pendingDownloads.delete('__repair__'); }
+  }
+  if (msg.type === 'local_update_result') {
+    const key = msg.requestId ? `__local_update__${msg.requestId}` : '__local_update__';
+    const p = pendingDownloads.get(key);
+    if (p) { p.resolve(msg); pendingDownloads.delete(key); }
   }
 }
 
@@ -678,6 +684,26 @@ function nativeRepair() {
         resolve({ ok: false, error: 'Native host repair timed out' });
       }
     }, 120000);
+  });
+}
+
+function localUpdateNative({ repoPath = '', mode = 'status' } = {}) {
+  return new Promise(resolve => {
+    const port = getNativePort();
+    if (!port) {
+      resolve({ ok: false, error: 'Native host not installed. Run install_windows.bat or install_unix.sh first.' });
+      return;
+    }
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const key = `__local_update__${requestId}`;
+    pendingDownloads.set(key, { resolve });
+    port.postMessage({ action: 'local_update', requestId, repoPath, mode });
+    setTimeout(() => {
+      if (pendingDownloads.has(key)) {
+        pendingDownloads.delete(key);
+        resolve({ ok: false, error: 'Local update timed out' });
+      }
+    }, LOCAL_UPDATE_TIMEOUT_MS);
   });
 }
 
@@ -956,6 +982,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'REPAIR_NATIVE_HOST') {
     nativeRepair().then(reply).catch(replyError);
     return true;
+  }
+  if (msg.type === 'LOCAL_UPDATE_STATUS') {
+    localUpdateNative({ repoPath: msg.repoPath || '', mode: 'status' }).then(reply).catch(replyError);
+    return true;
+  }
+  if (msg.type === 'LOCAL_UPDATE_APPLY') {
+    localUpdateNative({ repoPath: msg.repoPath || '', mode: 'pull' }).then(reply).catch(replyError);
+    return true;
+  }
+  if (msg.type === 'LOCAL_RELOAD_EXTENSION') {
+    reply({ ok: true });
+    setTimeout(() => chrome.runtime.reload(), 150);
+    return false;
   }
 
   if (msg.type === 'BOOKMARK_CURRENT') {

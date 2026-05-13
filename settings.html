@@ -43,6 +43,10 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span>Import / Export</span>
       </li>
+      <li class="nav-item" data-section="local-update">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+        <span>Local Update</span>
+      </li>
       <li class="nav-item" data-section="about">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <span>About</span>
@@ -492,6 +496,43 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           Reset to defaults
         </button>
+      </div>
+    </section>
+
+    <!-- ═══════ LOCAL UPDATE ═══════ -->
+    <section class="settings-section" id="section-local-update">
+      <h1 class="section-title">Local Update</h1>
+      <p class="section-desc">Update only from a local repository path. No remote web update URL is used.</p>
+
+      <div class="settings-card">
+        <div class="card-section-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+          LOCAL REPOSITORY
+        </div>
+        <p class="card-section-hint">Use the folder where this unpacked extension repository lives. The native host will only accept local filesystem paths or file:// remotes.</p>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Repository path</div>
+            <div class="setting-hint">Example: C:\Users\You\Downloads\DEV\yt-dlp-extension</div>
+          </div>
+          <div class="setting-inline-control dynamic-path-row">
+            <input type="text" id="set-local-repo-path" class="setting-input" placeholder="Full local repo path"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="card-section-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+          ACTIONS
+        </div>
+        <div class="btn-row">
+          <button class="action-btn" id="local-update-check-btn" type="button">Check local status</button>
+          <button class="action-btn" id="local-update-apply-btn" type="button">Pull local update</button>
+          <button class="action-btn" id="local-update-reload-btn" type="button">Reload extension</button>
+        </div>
+        <p class="card-section-hint" style="margin-top:12px">Pull is blocked unless the Git remote is local: a filesystem path or file:// URL. If you already updated files manually, just reload.</p>
+        <pre id="local-update-status" class="local-update-status">Not checked yet.</pre>
       </div>
     </section>
 

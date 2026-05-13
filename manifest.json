@@ -1,10 +1,9 @@
 {
   "manifest_version": 3,
   "name": "YT Bookmark Cleaner",
-  "version": "2.6",
+  "version": "2.7",
   "description": "YouTube bookmark manager, sync & downloader with yt-dlp",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuD9fm78Yb8xNfKpQCFvoQ4BRVs3j36UAGh28e1Ors7iDLIDSupDfnMjdeDXsdjOdBzeUGFTnvqbSAM1KKXY2tuQ9ABjXr3io+nZgpTQ0Yp1OW+A6bKbFjYZ3REo4ku6l9cAs9V1d/VOTxcLeuImO46V3G2i8Hnb90JNWL1iQBIKV60IZKhdQGZN/B7RQcf4HrjVyKaH0Pdn1Ph+i6C03m6QJ+6UIjxHufEGJNQZ7eYAQjgUpP8SyKnP0j2E6z1Xl4R2kl/nrFLfwj8gPsPuwa/zKxvlDL5u1QvCaCXMBVW8V57Hg3b3HZecfPMfMq4yK6xICxyQSzQ58OCYiI6xs/QIDAQAB",
-
   "permissions": [
     "bookmarks",
     "storage",
@@ -14,64 +13,69 @@
     "clipboardRead",
     "cookies"
   ],
-
   "background": {
     "service_worker": "background.js"
   },
-
   "action": {
     "default_title": "YT Bookmark Cleaner",
     "default_popup": "ui.html"
   },
-
   "side_panel": {
     "default_path": "ui.html?mode=sidebar"
   },
-
   "commands": {
     "_execute_action": {
-      "suggested_key": { "default": "Ctrl+Shift+F" },
+      "suggested_key": {
+        "default": "Ctrl+Shift+F"
+      },
       "description": "Activate the extension"
     },
     "quick-download": {
-      "suggested_key": { "default": "Alt+F" },
+      "suggested_key": {
+        "default": "Alt+F"
+      },
       "description": "Download current YouTube / YT Music video with yt-dlp"
     },
     "like-and-bookmark": {
-      "suggested_key": { "default": "Ctrl+W" },
+      "suggested_key": {
+        "default": "Ctrl+W"
+      },
       "description": "Like and bookmark the current YouTube / YT Music video"
     }
   },
-
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-
   "content_scripts": [
     {
       "matches": [
         "https://www.youtube.com/*",
         "https://music.youtube.com/*"
       ],
-      "js": ["cleaner.js"],
+      "js": [
+        "cleaner.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-
   "host_permissions": [
     "https://translate.googleapis.com/*",
     "https://www.youtube.com/*",
     "https://music.youtube.com/*",
     "https://accounts.google.com/*"
   ],
-
   "web_accessible_resources": [
     {
-      "resources": ["ui.html", "settings.html"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "ui.html",
+        "settings.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
